@@ -65,7 +65,7 @@ class XiaDaemon:
         And submits any missing.
         """
 
-        print('>> starting daemon with {} sec interval'.format(self.interval))
+        print('>> starting daemon with {} sec interval'.format(self.update_interval))
 
         while True:
         
@@ -75,39 +75,52 @@ class XiaDaemon:
             print('>> checking for latest results...')
             print(current_time)
 
-
-            # fetch all xtals labeled success in db
-            to_run = set(self.fetch_diffraction_successes())
-            for md in to_run:
-                if not self.raw_data_exists(md):
-                    to_run.remove(md)
-                    print('warning! ds {} in DB but not on disk'.format(md))
-
-            print('Diffracting crystals collected:  {}'.format(len(to_run)))
-
-
-            # see which not already finished
-            processed = 0
-            for md in to_run:
-                if self.xia_result_exists(md):
-                    to_run.remove(md)
-                    processed += 1
-            print('Processed already:               {}'.format(processed))
-            
-
-            # see which not already submitted
-            running = set(self.fetch_running_jobs())
-            to_run = to_run - running # set diff
-            print('Running on SLURM:                {}'.format(len(running)))
-
-
-            # submit the rest
-            print('Submitting:                      {}'.format(len(to_run)))
-            for md in to_run:
-                self.submit_run(md)
+            self.submit_unfinished(verbose=True)
 
             # sleep and start again
-            time.sleep(self.interval)
+            time.sleep(self.update_interval)
+
+        return
+
+
+    def submit_unfinished(self, verbose=False, limit=None):
+
+        # fetch all xtals labeled success in db
+        to_run = set(self.fetch_diffraction_successes())
+        if verbose:
+            print('Fetched from database:           {}'.format(len(to_run)))
+
+        to_rm = []
+        for md in to_run:
+            if not self.raw_data_exists(md):
+                to_rm.append(md)
+                #print('warning! ds {} in DB but not on disk'.format(md))
+        to_run = to_run - set(to_rm)
+
+        if verbose:
+            print('Diffracting crystals collected:  {}'.format(len(to_run)))
+
+        # see which not already finished
+        to_rm = []
+        for md in to_run:
+            if self.xia_result_exists(md):
+                to_rm.append(md)
+        to_run = to_run - set(to_rm)
+        if verbose:
+            print('Processed already:               {}'.format(len(to_rm)))
+
+        # see which not already submitted
+        running = set(self.fetch_running_jobs())
+        to_run = to_run - running
+        if verbose:
+            print('Running on SLURM:                {}'.format(len(running)))
+
+        # submit the rest
+        if verbose:
+            print('Submitting:                      {}'.format(len(to_run)))
+            
+        for md in list(to_run)[:limit]:
+            self.submit_run(md)
 
         return
 
@@ -251,12 +264,8 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata} nproc=32 {sgstr} {u
 
 if __name__ == '__main__':
 
-    xd = XiaDaemon('DIALS', 'dials')
-    #xd.submit_run('l8p23_03', debug=False)    
-
-    #print( len(xd.fetch_diffraction_successes()) )
-    #print( xd.raw_data_exists('l8p23_03') )
-    print( 'res exists?', xd.xia_result_exists('l8p23_03') )
-    print( xd.fetch_running_jobs() )
+    xd = XiaDaemon('DIALS', 'dials', update_interval=180)
+    xd.start()
+    #xd.submit_unfinished(limit=5)
 
 
