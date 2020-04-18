@@ -1,6 +1,8 @@
 
 import os
 import sys
+import re
+import time
 import subprocess
 
 from glob import glob
@@ -15,7 +17,8 @@ from config import database_config as config
 
 class XiaDaemon:
 
-    def __init__(self, name, pipeline, spacegroup=None, unit_cell=None):
+    def __init__(self, name, pipeline, spacegroup=None, unit_cell=None,
+                 update_interval=60):
         """
         name : str that identifies this pipeline
         """
@@ -27,6 +30,8 @@ class XiaDaemon:
         self.pipeline   = pipeline
         self.spacegroup = spacegroup
         self.unit_cell  = unit_cell
+
+        self.update_interval = update_interval
 
         # connect to the SARS-COV-2 SQL db
         self.db = SQL(config)
@@ -48,15 +53,70 @@ class XiaDaemon:
         return
 
 
+    def start(self):
+        """
+        Start the daemon, who every interval checks:
+
+          -- all crystals labeled success in db
+          -- which exist in raw/
+          -- which not already finished
+          -- which not already submitted
+
+        And submits any missing.
+        """
+
+        print('>> starting daemon with {} sec interval'.format(self.interval))
+
+        while True:
+        
+            t = time.localtime()
+            current_time = time.strftime("%H:%M:%S", t)
+            print('')
+            print('>> checking for latest results...')
+            print(current_time)
+
+
+            # fetch all xtals labeled success in db
+            to_run = set(self.fetch_diffraction_successes())
+            for md in to_run:
+                if not self.raw_data_exists(md):
+                    to_run.remove(md)
+                    print('warning! ds {} in DB but not on disk'.format(md))
+
+            print('Diffracting crystals collected:  {}'.format(len(to_run)))
+
+
+            # see which not already finished
+            processed = 0
+            for md in to_run:
+                if self.xia_result_exists(md):
+                    to_run.remove(md)
+                    processed += 1
+            print('Processed already:               {}'.format(processed))
+            
+
+            # see which not already submitted
+            running = set(self.fetch_running_jobs())
+            to_run = to_run - running # set diff
+            print('Running on SLURM:                {}'.format(len(running)))
+
+
+            # submit the rest
+            print('Submitting:                      {}'.format(len(to_run)))
+            for md in to_run:
+                self.submit_run(md)
+
+            # sleep and start again
+            time.sleep(self.interval)
+
+        return
+
+
     def fetch_diffraction_successes(self):
         successes = self.db.fetch(
             "SELECT metadata FROM Master_View WHERE diffraction='Success';"
         )
         return [ s['metadata'] for s in successes ]
-
-
-    def fetch_running_jobs(self):
-        return
 
 
     @staticmethod
@@ -67,6 +127,25 @@ class XiaDaemon:
         else:
             data_exists = False
         return data_exists
+
+
+    def fetch_running_jobs(self):
+        """
+        Return a list of metadata str that are running on SLURM
+        """
+
+        running = []
+
+        r = subprocess.run("/software/tools/bin/slurm queue", 
+                           capture_output=True, shell=True, check=True)
+        
+        lines = r.stdout.decode("utf-8").split('\n')
+        for line in lines:
+            g = re.search('{}_(\w+)'.format(self.name), line)
+            if g:
+                running.append(g.groups()[0])
+
+        return running
 
 
     def xia_result_exists(self, metadata):
@@ -80,21 +159,6 @@ class XiaDaemon:
         full_mtz_path = pjoin(outdir, mtzpth)
 
         return os.path.exists(full_mtz_path)
-
-
-    @property
-    def crystals_to_run(self):
-        """
-        Get list of crystals to run
-
-          -- success in db
-          -- exists in raw
-          -- not already submitted
-          -- not already finished
-
-        Returned as a list of str, where the str are metadata entries.
-        """
-        return
 
 
     @staticmethod
@@ -149,9 +213,9 @@ class XiaDaemon:
 #SBATCH --partition=cfel
 #SBATCH --nodes=1
 #SBATCH --chdir     {outdir}
-#SBATCH --job-name  {pipeline}_{metadata}
-#SBATCH --output    {pipeline}_{metadata}.out
-#SBATCH --error     {pipeline}_{metadata}.err
+#SBATCH --job-name  {name}_{metadata}
+#SBATCH --output    {name}_{metadata}.out
+#SBATCH --error     {name}_{metadata}.err
 
 export LD_PRELOAD=""
 source /etc/profile.d/modules.sh
@@ -162,6 +226,7 @@ imgs={rawdir}
 xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata} nproc=32 {sgstr} {ucstr} $imgs
 
         """.format(
+                    name     = self.name,
                     metadata = metadata,
                     pipeline = self.pipeline,
                     rawdir   = rawdir,
@@ -189,6 +254,9 @@ if __name__ == '__main__':
     xd = XiaDaemon('DIALS', 'dials')
     #xd.submit_run('l8p23_03', debug=False)    
 
-    print( len(xd.fetch_diffraction_successes()) )
-    print( xd.raw_data_exists('l8p23_03') )
-    print( xd.xia_result_exists('l8p23_03') )
+    #print( len(xd.fetch_diffraction_successes()) )
+    #print( xd.raw_data_exists('l8p23_03') )
+    print( 'res exists?', xd.xia_result_exists('l8p23_03') )
+    print( xd.fetch_running_jobs() )
+
+
