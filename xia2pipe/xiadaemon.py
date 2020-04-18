@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 
+from glob import glob
 from os.path import join as pjoin
 
 sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/connector") # TODO
@@ -51,7 +52,7 @@ class XiaDaemon:
         successes = self.db.fetch(
             "SELECT metadata FROM Master_View WHERE diffraction='Success';"
         )
-        return successes
+        return [ s['metadata'] for s in successes ]
 
 
     def fetch_running_jobs(self):
@@ -60,12 +61,25 @@ class XiaDaemon:
 
     @staticmethod
     def raw_data_exists(metadata):
-        return
+        cbfs = glob("/asap3/petra3/gpfs/p11/2020/data/11009999/raw/{}/*/*.cbf".format(metadata))
+        if len(cbfs) > 20:
+            data_exists = True
+        else:
+            data_exists = False
+        return data_exists
 
 
-    @staticmethod
-    def xia_result_exists(metadata):
-        return
+    def xia_result_exists(self, metadata):
+
+        # check for something like this:
+        # /asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/DIALS/l8p23_03/DataFiles/SARSCOV2_l8p23_03_free.mtz
+        # ^ ----------------------- outdir -------------------------------- ^
+    
+        outdir = self.metadata_to_outdir(metadata)
+        mtzpth = "DataFiles/SARSCOV2_{}_free.mtz".format(metadata)
+        full_mtz_path = pjoin(outdir, mtzpth)
+
+        return os.path.exists(full_mtz_path)
 
 
     @property
@@ -81,7 +95,6 @@ class XiaDaemon:
         Returned as a list of str, where the str are metadata entries.
         """
         return
-
 
 
     @staticmethod
@@ -176,4 +189,6 @@ if __name__ == '__main__':
     xd = XiaDaemon('DIALS', 'dials')
     #xd.submit_run('l8p23_03', debug=False)    
 
-    print(xd.fetch_diffraction_successes())
+    print( len(xd.fetch_diffraction_successes()) )
+    print( xd.raw_data_exists('l8p23_03') )
+    print( xd.xia_result_exists('l8p23_03') )
