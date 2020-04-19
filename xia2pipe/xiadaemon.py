@@ -4,14 +4,7 @@ import sys
 import re
 import time
 import subprocess
-
 from glob import glob
-
-sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/connector") 
-sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/database-tools")
-
-from MySQL.dev.connector import SQL
-from config import database_config as config
 
 from projbase import ProjectBase
 
@@ -24,32 +17,23 @@ class XiaDaemon(ProjectBase):
         name : str that identifies this pipeline
         """
 
-        if pipeline.lower() not in ['dials', '2d', '3d', '3dii']:
-            raise ValueError('pipeline: {} not valid'.format(pipeline))
-
-        self.name       = name
-        self.pipeline   = pipeline
-        self.projpath   = projpath
-        self.spacegroup = spacegroup
-        self.unit_cell  = unit_cell
+        super().__init__(name, pipeline, projpath,
+                         spacegroup=None, unit_cell=None)
 
         self.update_interval = update_interval
 
-        # connect to the SARS-COV-2 SQL db
-        self.db = SQL(config)
-
         # ensure output dir exists
-        pipedir = "/asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/{}".format(self.name)        
-        if not os.path.exists(pipedir):
-            os.mkdir(pipedir)
+        self.pipedir = "/asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/{}".format(self.name)        
+        if not os.path.exists(self.pipedir):
+            os.mkdir(self.pipedir)
 
         print("")
         print(" ~~~ starting xia2 daemon ~~~")
-        print("Name         ", name)
+        print("Name         ", self.name)
         print("Pipeline:    ", self.pipeline)
         print("SG:          ", self.spacegroup)
         print("UC:          ", self.unit_cell)
-        print("dir:         ", pipedir)
+        print("dir:         ", self.pipedir)
         print("")
 
         return
@@ -105,7 +89,7 @@ class XiaDaemon(ProjectBase):
         # see which not already finished
         to_rm = []
         for md in to_run:
-            if self.xia_result_exists(md):
+            if self.xia_result(md) in ['finished', 'procfail']:
                 to_rm.append(md)
         to_run = to_run - set(to_rm)
         if verbose:
@@ -240,6 +224,6 @@ if __name__ == '__main__':
     xd = XiaDaemon(name, pipeline, projpath, 
                    update_interval=180)
     #xd.start()
-    xd.submit_unfinished(verbose=True, limit=0)
+    xd.submit_unfinished(verbose=True)
 
 
