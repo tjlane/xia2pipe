@@ -6,19 +6,20 @@ import time
 import subprocess
 
 from glob import glob
-from os.path import join as pjoin
 
-sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/connector") # TODO
+sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/connector") 
 sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/database-tools")
 
 from MySQL.dev.connector import SQL
 from config import database_config as config
 
+from projbase import ProjectBase
 
-class XiaDaemon:
 
-    def __init__(self, name, pipeline, spacegroup=None, unit_cell=None,
-                 update_interval=60):
+class XiaDaemon(ProjectBase):
+
+    def __init__(self, name, pipeline, projpath, 
+                 spacegroup=None, unit_cell=None, update_interval=60):
         """
         name : str that identifies this pipeline
         """
@@ -28,6 +29,7 @@ class XiaDaemon:
 
         self.name       = name
         self.pipeline   = pipeline
+        self.projpath   = projpath
         self.spacegroup = spacegroup
         self.unit_cell  = unit_cell
 
@@ -53,7 +55,7 @@ class XiaDaemon:
         return
 
 
-    def start(self):
+    def start(self, limit=None):
         """
         Start the daemon, who every interval checks:
 
@@ -75,7 +77,7 @@ class XiaDaemon:
             print('>> checking for latest results...')
             print(current_time)
 
-            self.submit_unfinished(verbose=True)
+            self.submit_unfinished(verbose=True, limit=limit)
 
             # sleep and start again
             time.sleep(self.update_interval)
@@ -120,7 +122,12 @@ class XiaDaemon:
             print('Submitting:                      {}'.format(len(to_run)))
             
         for md in list(to_run)[:limit]:
-            self.submit_run(md)
+            try:
+                self.submit_run(md)
+            except OSError as e:
+                # TODO this shouldn't happen, but it is...
+                print('! warning !', e)
+                print('trying to proceed...')
 
         return
 
@@ -130,16 +137,6 @@ class XiaDaemon:
             "SELECT metadata FROM Master_View WHERE diffraction='Success';"
         )
         return [ s['metadata'] for s in successes ]
-
-
-    @staticmethod
-    def raw_data_exists(metadata):
-        cbfs = glob("/asap3/petra3/gpfs/p11/2020/data/11009999/raw/{}/*/*.cbf".format(metadata))
-        if len(cbfs) > 20:
-            data_exists = True
-        else:
-            data_exists = False
-        return data_exists
 
 
     def fetch_running_jobs(self):
@@ -161,42 +158,7 @@ class XiaDaemon:
         return running
 
 
-    def xia_result_exists(self, metadata):
-
-        # check for something like this:
-        # /asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/DIALS/l8p23_03/DataFiles/SARSCOV2_l8p23_03_free.mtz
-        # ^ ----------------------- outdir -------------------------------- ^
-    
-        outdir = self.metadata_to_outdir(metadata)
-        mtzpth = "DataFiles/SARSCOV2_{}_free.mtz".format(metadata)
-        full_mtz_path = pjoin(outdir, mtzpth)
-
-        return os.path.exists(full_mtz_path)
-
-
-    @staticmethod
-    def metadata_to_rawdir(metadata):
-        """
-        Fetch the latest run directory for a given metadata by inspecting
-        what is on disk.
-
-        TODO x-ref against database?
-        """
-
-        base = "/asap3/petra3/gpfs/p11/2020/data/11009999/raw/{}".format(metadata)
-        runs = sorted( os.listdir(base) )
-        
-        latest_run = pjoin(base, runs[-1])
-
-        return latest_run
-
-
-    def metadata_to_outdir(self, metadata):
-        s = "/asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/{}/{}"
-        return s.format(self.name, metadata)
-
-
-    def submit_run(self, metadata, debug=False):
+    def submit_run(self, metadata, debug=False, allow_overwrite=True):
 
         # first, create the directory sub-structure
         rawdir = self.metadata_to_rawdir(metadata)
@@ -205,8 +167,10 @@ class XiaDaemon:
         if not os.path.exists(outdir):
             os.mkdir(outdir)
         else:
-            raise IOError('output directory {}/{} already exists...'
-                          ''.format(self.name, metadata))
+            if not allow_overwrite:
+                raise IOError('output directory {}/{} already exists...'
+                              ''.format(self.name, metadata))
+            # if we allow overwrite, just continue...
 
         # optionally make flags setting the SG and UC
         if self.spacegroup is not None:
@@ -219,11 +183,15 @@ class XiaDaemon:
         else:
             ucstr = ''
 
+#SBATCH --partition=cfel
+#SBATCH --partition=all
+#SBATCH --reservation=covid
 
         # then write and sub the slurm script
         batch_script="""#!/bin/bash
 
-#SBATCH --partition=cfel
+#SBATCH --partition=all
+#SBATCH --reservation=covid
 #SBATCH --nodes=1
 #SBATCH --chdir     {outdir}
 #SBATCH --job-name  {name}_{metadata}
@@ -256,7 +224,8 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata} nproc=32 {sgstr} {u
 
         # submit to queue and cleanup
         if not debug:
-            r = subprocess.run("/usr/bin/sbatch {}".format(slurm_file), shell=True, check=True)
+            r = subprocess.run("/usr/bin/sbatch {}".format(slurm_file), 
+                               shell=True, check=True)
             os.remove(slurm_file)
 
         return
@@ -264,8 +233,13 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata} nproc=32 {sgstr} {u
 
 if __name__ == '__main__':
 
-    xd = XiaDaemon('DIALS', 'dials', update_interval=180)
-    xd.start()
-    #xd.submit_unfinished(limit=5)
+    name     = 'DIALS'
+    pipeline = 'dials'
+    projpath = '/asap3/petra3/gpfs/p11/2020/data/11009999'
+
+    xd = XiaDaemon(name, pipeline, projpath, 
+                   update_interval=180)
+    #xd.start()
+    xd.submit_unfinished(verbose=True, limit=0)
 
 
