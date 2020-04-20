@@ -19,7 +19,7 @@ Consists of 3 main parts:
 
 ## To Do
 
-- consolidate/generalize slurm submissions
+- flexible partition for slurm jobs
 - yaml input/init file
 - all daemons in one loop
 

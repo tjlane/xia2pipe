@@ -42,7 +42,7 @@ class DimplingDaemon(ProjectBase):
 
         running = []
 
-        r = subprocess.run("/software/tools/bin/slurm queue",
+        r = subprocess.run('sacct --format="JobID,JobName%30"',
                            capture_output=True, shell=True, check=True)
 
         lines = r.stdout.decode("utf-8").split('\n')
@@ -260,14 +260,13 @@ if __name__ == '__main__':
     pipeline = 'dials'
     projpath = '/asap3/petra3/gpfs/p11/2020/data/11009999'
 
+    md = 'l9p21_04'
+
     dd = DimplingDaemon(name, pipeline, projpath)
+
+    #print( dd.get_resolution(md))
+    #dd.submit_run(md)
+
     print('running', dd.fetch_running_jobs() )
-
-    print( dd._get_xds_res('l5p14_02'))
-    print( dd._get_xds_res('l5p14_02', which='isigma'))
-    print( dd._get_aimless_res('l5p14_02'))
-
-    #dd.submit_run('l5p14_02')
-
 
 
