@@ -2,7 +2,6 @@
 
 set mtzin  = $1
 set mtzout = $2
-set inputpdb = /asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/input.pdb
 
 # you will need realpath for the following
 set self = `realpath $0`

@@ -11,20 +11,6 @@ from projbase import ProjectBase
 
 class XiaDaemon(ProjectBase):
 
-    def __init__(self, name, pipeline, projpath, 
-                 spacegroup=None, unit_cell=None):
-
-        super().__init__(name, pipeline, projpath,
-                         spacegroup=None, unit_cell=None)
-
-        # ensure output dir exists
-        self.pipedir = "/asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/{}".format(self.name)        
-        if not os.path.exists(self.pipedir):
-            os.mkdir(self.pipedir)
-
-        return
-
-
     def submit_unfinished(self, verbose=False, limit=None):
         """
         Check:
@@ -189,11 +175,7 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata} nproc=32 {sgstr} {u
 
 if __name__ == '__main__':
 
-    name     = 'DIALS'
-    pipeline = 'dials'
-    projpath = '/asap3/petra3/gpfs/p11/2020/data/11009999'
-
-    xd = XiaDaemon(name, pipeline, projpath)
-    xd.submit_unfinished(verbose=True)
+    xd = XiaDaemon.load_config('config.yaml')
+    xd.submit_unfinished(verbose=True, limit=0)
 
 

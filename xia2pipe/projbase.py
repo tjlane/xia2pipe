@@ -2,6 +2,7 @@
 
 import os
 import sys
+import yaml
 from glob import glob
 from os.path import join as pjoin
 
@@ -15,8 +16,14 @@ from config import database_config as config
 
 class ProjectBase:
 
-    def __init__(self, name, pipeline, projpath,
-                 spacegroup=None, unit_cell=None):
+    def __init__(self, 
+                 name,
+                 pipeline,
+                 projpath,
+                 spacegroup=None, 
+                 unit_cell=None,
+                 sql_config=None,
+                 slurm_config=None):
 
         self.name     = name
         self.projpath = projpath
@@ -28,8 +35,16 @@ class ProjectBase:
         if pipeline.lower() not in ['dials', '2d', '3d', '3dii']:
             raise ValueError('pipeline: {} not valid'.format(pipeline))
 
+        # ensure output dir exists
+        self.pipedir = "/asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/{}".format(self.name)
+        if not os.path.exists(self.pipedir):
+            os.mkdir(self.pipedir)
+
         # connect to the SARS-COV-2 SQL db
-        self.db = SQL(config)
+        self.db = SQL(sql_config)
+
+        # save the slurm configuration
+        self.slurm_config = slurm_config
 
         return
 
@@ -118,6 +133,23 @@ class ProjectBase:
 
 
     @classmethod
-    def load_yaml(cls, filename):
-        raise NotImplementedError()
+    def load_config(cls, filename):
+
+        config = yaml.safe_load(open(filename, 'r'))
+
+        proj_config = config['project']
+
+        # TODO better error reporting
+        name     = proj_config.pop('name')
+        pipeline = proj_config.pop('pipeline')
+        projdir  = proj_config.pop('projpath')
+
+        return cls(name,
+                   pipeline,
+                   projdir,
+                   sql_config=config['sql'],
+                   slurm_config=config['slurm'],
+                   **proj_config)
+
+
 

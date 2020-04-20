@@ -11,15 +11,6 @@ from projbase import ProjectBase
 
 class DimplingDaemon(ProjectBase):
 
-    def __init__(self, name, pipeline, projpath,
-                 spacegroup=None, unit_cell=None):
-
-        super().__init__(name, pipeline, projpath,
-                         spacegroup=None, unit_cell=None)
-
-        return
-
-
     def fetch_xia_successes(self):
 
         # TODO later on make better use of the DB...
@@ -70,7 +61,10 @@ class DimplingDaemon(ProjectBase):
             "crystal_id='{}';".format(which, crystal_id)
         )
 
-        assert len(res) == 1, res
+        if len(res) == 0:
+            raise RuntimeError('{} resolution result not in DB'.format(metadata))
+        elif len(res) > 1:
+            raise RuntimeError('{} has more than one resolution in DB'.format(metadata))
 
         return res[0]['resolution_{}'.format(which)]
 
@@ -256,15 +250,11 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
 
 if __name__ == '__main__':
 
-    name     = 'DIALS'
-    pipeline = 'dials'
-    projpath = '/asap3/petra3/gpfs/p11/2020/data/11009999'
-
     md = 'l9p21_04'
 
-    dd = DimplingDaemon(name, pipeline, projpath)
+    dd = DimplingDaemon.load_config('config.yaml')
 
-    #print( dd.get_resolution(md))
+    print( dd.get_resolution(md))
     #dd.submit_run(md)
 
     print('running', dd.fetch_running_jobs() )
