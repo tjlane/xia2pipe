@@ -31,8 +31,17 @@ class ProjectBase:
         # connect to the SARS-COV-2 SQL db
         self.db = SQL(config)
 
-
         return
+
+
+    def metadata_to_id(self, metadata):
+        cid = self.db.fetch(
+            "SELECT crystal_id FROM Diffractions WHERE "
+            "metadata='{}';".format(metadata)
+        )
+        assert len(cid) == 1, cid
+        return cid[0]['crystal_id']
+
 
     def raw_data_exists(self, metadata):
         pth = pjoin(self.projpath, "raw/{}/*/*.cbf".format(metadata))
@@ -78,6 +87,25 @@ class ProjectBase:
         full_mtz_path = pjoin(outdir, mtzpth)
 
         errpth = pjoin(outdir, 'xia2.error')
+
+        if os.path.exists(full_mtz_path):
+            result = 'finished'
+        elif os.path.exists(errpth):
+            result = 'procfail'
+        else:
+            result = 'notdone'
+
+        return result
+
+
+    def dmpl_result(self, metadata):
+
+        outdir = self.metadata_to_outdir(metadata)
+
+        mtzpth = "{}_postphenix_out.mtz".format(metadata)
+        full_mtz_path = pjoin(outdir, mtzpth)
+
+        errpth = pjoin(outdir, 'dmpl_{}.err'.format(metadata))
 
         if os.path.exists(full_mtz_path):
             result = 'finished'

@@ -12,36 +12,22 @@ from projbase import ProjectBase
 class XiaDaemon(ProjectBase):
 
     def __init__(self, name, pipeline, projpath, 
-                 spacegroup=None, unit_cell=None, update_interval=60):
-        """
-        name : str that identifies this pipeline
-        """
+                 spacegroup=None, unit_cell=None):
 
         super().__init__(name, pipeline, projpath,
                          spacegroup=None, unit_cell=None)
-
-        self.update_interval = update_interval
 
         # ensure output dir exists
         self.pipedir = "/asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/{}".format(self.name)        
         if not os.path.exists(self.pipedir):
             os.mkdir(self.pipedir)
 
-        print("")
-        print(" ~~~ starting xia2 daemon ~~~")
-        print("Name         ", self.name)
-        print("Pipeline:    ", self.pipeline)
-        print("SG:          ", self.spacegroup)
-        print("UC:          ", self.unit_cell)
-        print("dir:         ", self.pipedir)
-        print("")
-
         return
 
 
-    def start(self, limit=None):
+    def submit_unfinished(self, verbose=False, limit=None):
         """
-        Start the daemon, who every interval checks:
+        Check:
 
           -- all crystals labeled success in db
           -- which exist in raw/
@@ -51,25 +37,11 @@ class XiaDaemon(ProjectBase):
         And submits any missing.
         """
 
-        print('>> starting daemon with {} sec interval'.format(self.update_interval))
-
-        while True:
-        
-            t = time.localtime()
-            current_time = time.strftime("%H:%M:%S", t)
-            print('')
-            print('>> checking for latest results...')
-            print(current_time)
-
-            self.submit_unfinished(verbose=True, limit=limit)
-
-            # sleep and start again
-            time.sleep(self.update_interval)
-
-        return
-
-
-    def submit_unfinished(self, verbose=False, limit=None):
+        t = time.localtime()
+        current_time = time.strftime("%H:%M:%S", t)
+        print('')
+        print('>> xia2 daemon crunching latest results...')
+        print('>>', current_time)
 
         # fetch all xtals labeled success in db
         to_run = set(self.fetch_diffraction_successes())
@@ -168,14 +140,14 @@ class XiaDaemon(ProjectBase):
             ucstr = ''
 
 #SBATCH --partition=cfel
+
 #SBATCH --partition=all
 #SBATCH --reservation=covid
 
         # then write and sub the slurm script
         batch_script="""#!/bin/bash
 
-#SBATCH --partition=all
-#SBATCH --reservation=covid
+#SBATCH --partition=cfel
 #SBATCH --nodes=1
 #SBATCH --chdir     {outdir}
 #SBATCH --job-name  {name}_{metadata}
@@ -221,9 +193,7 @@ if __name__ == '__main__':
     pipeline = 'dials'
     projpath = '/asap3/petra3/gpfs/p11/2020/data/11009999'
 
-    xd = XiaDaemon(name, pipeline, projpath, 
-                   update_interval=180)
-    #xd.start()
+    xd = XiaDaemon(name, pipeline, projpath)
     xd.submit_unfinished(verbose=True)
 
 
