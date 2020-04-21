@@ -15,12 +15,12 @@ class DimplingDaemon(ProjectBase):
 
         # TODO later on make better use of the DB...
         successes = self.db.fetch(
-            "SELECT metadata FROM Master_View WHERE diffraction='Success';"
+            "SELECT metadata, run_id FROM Master_View WHERE diffraction='Success';"
         )
 
         to_run = []
-        for md in [ s['metadata'] for s in successes ]:
-            if self.xia_result(md) == 'finished':
+        for md in [ (s['metadata'], s['run_id']) for s in successes ]:
+            if self.xia_result(*md) == 'finished':
                 to_run.append(md)
 
         return to_run
@@ -33,23 +33,24 @@ class DimplingDaemon(ProjectBase):
 
         running = []
 
-        r = subprocess.run('sacct --format="JobID,JobName%30"',
+        r = subprocess.run('sacct --format="JobID,JobName%30" --state="RUNNING,PENDING"',
                            capture_output=True, shell=True, check=True)
 
         lines = r.stdout.decode("utf-8").split('\n')
         for line in lines:
-            g = re.search('{}-dmpl_(\w+)'.format(self.name), line)
+            g = re.search('{}-dmpl_(\w+)-(\d)'.format(self.name), line) # TODO
             if g:
-                running.append(g.groups()[0])
+                grps = g.groups()
+                running.append( (grps[0], int(grps[1])) ) # metadata, run_id
 
         return running
 
 
-    def get_resolution(self, metadata):
-        return self._get_xds_res(metadata)
+    def get_resolution(self, metadata, run):
+        return self._get_xds_res(metadata, run)
 
 
-    def _get_xds_res(self, metadata, which='cc'):
+    def _get_xds_res(self, metadata, run, which='cc'):
 
         if which not in ['cc', 'isigma']:
             raise ValueError("which must be `cc` or `isigma`")
@@ -58,7 +59,7 @@ class DimplingDaemon(ProjectBase):
 
         res = self.db.fetch(
             "SELECT resolution_{} FROM XDS_Data_Reduction WHERE "
-            "crystal_id='{}';".format(which, crystal_id)
+            "crystal_id='{}' AND run_id={};".format(which, crystal_id, run)
         )
 
         if len(res) == 0:
@@ -69,10 +70,10 @@ class DimplingDaemon(ProjectBase):
         return res[0]['resolution_{}'.format(which)]
 
 
-    def _get_aimless_res(self, metadata):
+    def _get_aimless_res(self, metadata, run):
 
-        base = self.metadata_to_outdir(metadata)
-        flnm = 'LogFiles/SARSCOV2_{}_aimless_xml.xml'.format(metadata)
+        base = self.metadata_to_outdir(metadata, run)
+        flnm = 'LogFiles/SARSCOV2_{}_{:03d}_aimless_xml.xml'.format(metadata, run)
 
         tree = ET.parse(pjoin(base, flnm))
         root = tree.getroot()
@@ -99,18 +100,25 @@ class DimplingDaemon(ProjectBase):
         print('>>', current_time)
 
         # get sucessfully completed xia2 runs
-        to_run = self.fetch_xia_successes()
+        to_run = set(self.fetch_xia_successes())
         if verbose:
-            print('xia2 completed:                 {}'.format(len(to_run)))
+            print('xia2 completed:                  {}'.format(len(to_run)))
 
         # see which not already finished
         to_rm = []
+        successes = 0
+        failures  = 0
         for md in to_run:
-            if self.xia_result(md) in ['finished', 'procfail']:
+            if self.dmpl_result(*md) == 'finished':
                 to_rm.append(md)
+                successes += 1
+            elif self.dmpl_result(*md) == 'procfail':
+                to_rm.append(md)
+                failures  += 1
         to_run = to_run - set(to_rm)
         if verbose:
-            print('Processed already:               {}'.format(len(to_rm)))
+            print('Processed ({:04d} s/{:04d} f):       {}'
+                  ''.format(successes, failures, len(to_rm)))
 
         # see which not already submitted
         running = set(self.fetch_running_jobs())
@@ -123,20 +131,20 @@ class DimplingDaemon(ProjectBase):
             print('Submitting:                      {}'.format(len(to_run)))
 
         for md in list(to_run)[:limit]:
-            try:
-                self.submit_run(md)
-            except OSError as e:
-                # TODO this shouldn't happen, but it is...
-                print('! warning !', e)
-                print('trying to proceed...')
+            self.submit_run(*md)
 
         return
 
 
-    def submit_run(self, metadata, debug=False, allow_overwrite=True):
+    def submit_run(self, metadata, run, debug=False, allow_overwrite=True):
 
-        outdir = self.metadata_to_outdir(metadata)
-        resoln = self.get_resolution(metadata)
+        outdir = self.metadata_to_outdir(metadata, run)
+
+        try:
+            resoln = self.get_resolution(metadata, run)
+        except RuntimeError as e:
+            print('{}, {} :'.format(metadata, run), e)
+            return
 
         # then write and sub the slurm script
         batch_script="""#!/bin/bash
@@ -144,9 +152,9 @@ class DimplingDaemon(ProjectBase):
 #SBATCH --partition=cfel
 #SBATCH --nodes=1
 #SBATCH --chdir     {outdir}
-#SBATCH --job-name  {name}-dmpl_{metadata}
-#SBATCH --output    {name}-dmpl_{metadata}.out
-#SBATCH --error     {name}-dmpl_{metadata}.err
+#SBATCH --job-name  {name}-dmpl_{metadata}-{run}
+#SBATCH --output    {name}-dmpl_{metadata}-{run}.out
+#SBATCH --error     {name}-dmpl_{metadata}-{run}.err
 
 export LD_PRELOAD=""
 source /etc/profile.d/modules.sh
@@ -155,7 +163,7 @@ module load ccp4/7.0
 module load phenix/1.13
 
 
-metadata={metadata}
+metadata={metadata}_{run:03d}
 resolution={resolution}
 
 # >> static references (SHOULD COME FROM SQL!)
@@ -229,20 +237,24 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
         """.format(
                     name       = self.name,
                     metadata   = metadata,
+                    run        = run,
                     outdir     = outdir,
                     resolution = resoln,
                   )
 
         # create a slurm sub script
         # TODO : is this the best directory to make a tmp file?
-        slurm_file='/tmp/dmpl-{}-{}.sh'.format(self.name, metadata)
+        slurm_file='/tmp/dmpl-{}-{}-{}.sh'.format(self.name, metadata, run)
         with open(slurm_file, 'w') as f:
             f.write(batch_script)
 
         # submit to queue and cleanup
         if not debug:
             r = subprocess.run("/usr/bin/sbatch {}".format(slurm_file),
-                               shell=True, check=True)
+                               shell=True,
+                               check=True,
+                               stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
             os.remove(slurm_file)
 
         return
@@ -250,13 +262,37 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
 
 if __name__ == '__main__':
 
-    md = 'l9p21_04'
+    metadata  = 'l9p21_04'
+    run = 1
 
     dd = DimplingDaemon.load_config('config.yaml')
 
-    print( dd.get_resolution(md))
-    #dd.submit_run(md)
+    # --- tmp patch until db situation sorted ---
+    dd.sql_config = {
+        "host": "cfeld-vm04.desy.de",
+        "database": "SARS_COV_2_test",
+        "user": "reader",
+        "password": "sarsCovRead99!",
+        "connection_timeout": 60,
+        "auth_plugin": "mysql_native_password",
+        "autocommit": True,
+        }
 
-    print('running', dd.fetch_running_jobs() )
+    import sys
+    sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/connector")
+    from MySQL.dev.connector import SQL
+
+    dd.db = SQL(dd.sql_config)
+    # -------------------------------------------
+
+    #print( len(dd.fetch_xia_successes()), dd.fetch_xia_successes()[:3] )
+    #print(dd.get_resolution(metadata, run))
+    #print(dd._get_xds_res(metadata, run))
+
+    #dd.submit_run(metadata, run)
+
+    dd.submit_unfinished(limit=0)
+
+    #print('running', dd.fetch_running_jobs() )
 
 

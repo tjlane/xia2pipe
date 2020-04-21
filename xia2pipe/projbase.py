@@ -7,11 +7,7 @@ from glob import glob
 from os.path import join as pjoin
 
 sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/connector")
-sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/database-tools")
-
 from MySQL.dev.connector import SQL
-from config import database_config as config
-
 
 
 class ProjectBase:
@@ -54,12 +50,12 @@ class ProjectBase:
             "SELECT crystal_id FROM Diffractions WHERE "
             "metadata='{}';".format(metadata)
         )
-        assert len(cid) == 1, cid
+        #assert len(cid) == 1, cid
         return cid[0]['crystal_id']
 
 
-    def raw_data_exists(self, metadata):
-        pth = pjoin(self.projpath, "raw/{}/*/*.cbf".format(metadata))
+    def raw_data_exists(self, metadata, run):
+        pth = pjoin(self.projpath, "raw/{}/*_{:03d}/*.cbf".format(metadata, run))
         cbfs = glob(pth)
         if len(cbfs) > 20:
             data_exists = True
@@ -68,37 +64,36 @@ class ProjectBase:
         return data_exists
 
 
-    def metadata_to_rawdir(self, metadata):
+    def metadata_to_rawdir(self, metadata, run):
         """
         Fetch the latest run directory for a given metadata by inspecting
         what is on disk.
 
         TODO x-ref against database?
         """
-
-        base = pjoin(self.projpath, "raw/{}".format(metadata))
-        runs = sorted( os.listdir(base) )
-        
-        latest_run = pjoin(base, runs[-1])
-
-        return latest_run
+        rawdir = pjoin(self.projpath, 
+                       "raw/{}/{}_{:03d}".format(metadata, metadata, run))
+        return rawdir
 
 
-    def metadata_to_outdir(self, metadata):
+    def metadata_to_outdir(self, metadata, run):
         s = pjoin(self.projpath, 
-                  "scratch_cc/{}/{}".format(self.name, metadata))
+                  "scratch_cc/{}/{}/{}_{:03d}".format(self.name, 
+                                                      metadata,
+                                                      metadata,
+                                                      run))
         return s
 
 
-    def xia_result(self, metadata):
+    def xia_result(self, metadata, run):
 
         # check for something like this:
-        # /asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/DIALS/l8p23_03/DataFiles/SARSCOV2_l8p23_03_free.mtz
-        # ^ ----------------------- outdir -------------------------------- ^
+        # /asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/DIALS/l8p23_03/l8p23_03_001/DataFiles/SARSCOV2_l8p23_03_free.mtz
+        # ^ ----------------------- outdir ---------------------------------------------- ^
 
-        outdir = self.metadata_to_outdir(metadata)
+        outdir = self.metadata_to_outdir(metadata, run)
 
-        mtzpth = "DataFiles/SARSCOV2_{}_free.mtz".format(metadata)
+        mtzpth = "DataFiles/SARSCOV2_{}_{:03d}_free.mtz".format(metadata, run)
         full_mtz_path = pjoin(outdir, mtzpth)
 
         errpth = pjoin(outdir, 'xia2.error')
@@ -113,14 +108,14 @@ class ProjectBase:
         return result
 
 
-    def dmpl_result(self, metadata):
+    def dmpl_result(self, metadata, run):
 
-        outdir = self.metadata_to_outdir(metadata)
+        outdir = self.metadata_to_outdir(metadata, run)
 
-        mtzpth = "{}_postphenix_out.mtz".format(metadata)
+        mtzpth = "{}_{:03d}_postphenix_out.mtz".format(metadata, run)
         full_mtz_path = pjoin(outdir, mtzpth)
 
-        errpth = pjoin(outdir, 'dmpl_{}.err'.format(metadata))
+        errpth = pjoin(outdir, 'DIALS-dmpl_{}_{:03d}-{}.err'.format(metadata, run, run))
 
         if os.path.exists(full_mtz_path):
             result = 'finished'
@@ -151,5 +146,16 @@ class ProjectBase:
                    slurm_config=config['slurm'],
                    **proj_config)
 
+
+if __name__ == '__main__':
+
+    md  = 'l9p05_06'
+    run = 1
+
+    pb = ProjectBase.load_config('config.yaml')
+
+    print(pb.metadata_to_id(md))
+    print(pb.raw_data_exists(md, run))
+    print(pb.metadata_to_rawdir(md, run))
 
 
