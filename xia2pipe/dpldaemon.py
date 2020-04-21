@@ -291,7 +291,7 @@ if __name__ == '__main__':
 
     #dd.submit_run(metadata, run)
 
-    dd.submit_unfinished(limit=0)
+    dd.submit_unfinished(limit=None)
 
     #print('running', dd.fetch_running_jobs() )
 
