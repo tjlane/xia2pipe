@@ -283,16 +283,14 @@ if __name__ == '__main__':
     from MySQL.dev.connector import SQL
 
     dd.db = SQL(dd.sql_config)
+
+    # -------------------------------------------
+    #dd.name = 'HELENDIALS'
+    #dd.get_resolution = lambda x,y : "1.7"
+    #dd.submit_run('l10p07_08', 1)
+    #dd.submit_unfinished(limit=None)
     # -------------------------------------------
 
-    #print( len(dd.fetch_xia_successes()), dd.fetch_xia_successes()[:3] )
-    #print(dd.get_resolution(metadata, run))
-    #print(dd._get_xds_res(metadata, run))
-
-    #dd.submit_run(metadata, run)
-
     dd.submit_unfinished(limit=None)
-
-    #print('running', dd.fetch_running_jobs() )
 
 

@@ -3,6 +3,7 @@
 import os
 import sys
 import yaml
+import json
 from glob import glob
 from os.path import join as pjoin
 
@@ -108,6 +109,78 @@ class ProjectBase:
         return result
 
 
+    def xia_data(self, metadata, run):
+
+        outdir = self.metadata_to_outdir(metadata, run)
+
+        json_path = pjoin(outdir, 
+                          '{}_{:03d}'.format(metadata, run), 
+                          'scale/xia2.json')
+
+        if not os.path.exists(json_path):
+
+            # there were a few old datasets processed with just
+            # the meadata field, so try and find those -- if 
+            # that fails, we fail completely
+            orig_json_path = json_path
+            json_path = pjoin(outdir, 
+                              '{}'.format(metadata), 
+                              'scale/xia2.json')
+            #print('cannot find: {}, trying: {}'
+            #      ''.format(orig_json_path, json_path))
+
+            if not os.path.exists(json_path):
+                raise IOError('cannot find DIALS json for '
+                              '{}_{:03d}'.format(metadata, run))
+
+
+        # >>> parse the DIALS json
+        root = json.load(open(json_path, 'r'))
+
+        mtz_path = pjoin(outdir,
+                         "DataFiles/SARSCOV2_{}_{:03d}_free.mtz".format(metadata, run))
+
+        # here, cell = [a, b, c, alpha, beta, gamma]
+        cell = root['_scalr_cell']
+
+        # this one has some strange float-like key, but there is only one
+        k = list(root['_scalr_integraters'])[0]
+        space_group = root['_scalr_integraters'][k]['_intgr_spacegroup_number']
+
+        # these are keyed by something nasty like '["SARSCOV2", "l6p17_10", "NATIVE"]'
+        # but we expect just one sub-directory, so grab that...
+        # we want the first entry, which is the entire resolution range
+        # the other two are low & high res reflections only
+        ss = list(root['_scalr_statistics'].values())[0]
+
+        # >>> format the output
+        datadict = {
+                    'crystal_id' :   self.metadata_to_id(metadata),
+                    'run_id':        run,
+                    'analysis_time': os.path.getmtime(mtz_path),
+                    'folder_path':   outdir,
+                    'mtz_path':      mtz_path,
+                    'method':        self.pipeline,
+                    'resolution_cc': ss['High resolution limit'][0],
+                    'a':             cell[0],
+                    'b':             cell[1],
+                    'c':             cell[2],
+                    'alpha':         cell[3],
+                    'beta':          cell[4],
+                    'gamma':         cell[5],
+                    'space_group':   space_group,
+                    'isigi':         ss['I/sigma'][0],
+                    'rmeas':         ss['Rmeas(I)'][0],
+                    'cchalf':        ss['CC half'][0],
+                    #'rfactor':       None, # TODO
+                    'wilson_b':      ss['Wilson B factor'][0],
+                   }
+
+
+
+        return datadict
+
+
     def dmpl_result(self, metadata, run):
 
         outdir = self.metadata_to_outdir(metadata, run)
@@ -158,4 +231,4 @@ if __name__ == '__main__':
     print(pb.raw_data_exists(md, run))
     print(pb.metadata_to_rawdir(md, run))
 
-
+    print(pb.xia_data(md, run))

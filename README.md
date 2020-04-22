@@ -19,8 +19,10 @@ Consists of 3 main parts:
 
 ## To Do
 
+- check resolution cutting
+- SQL ingestion
 - flexible partition for slurm jobs
-- yaml input/init file
+- pass optional params to dials
 - all daemons in one loop
 
 

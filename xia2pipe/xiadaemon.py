@@ -183,11 +183,9 @@ if __name__ == '__main__':
 
     xd = XiaDaemon.load_config('config.yaml')
 
-    #ds = xd.fetch_diffraction_successes()
-    #print(len(ds), ds[:3])
+    #xd.name = 'HELENDIALS'
+    #xd.submit_run('l10p07_08', 1)
 
     xd.submit_unfinished(verbose=True, limit=None)
 
-    #time.sleep(2)
-    #print( len(xd.fetch_running_jobs()) )
 
