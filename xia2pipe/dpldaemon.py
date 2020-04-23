@@ -13,9 +13,8 @@ class DimplingDaemon(ProjectBase):
 
     def fetch_xia_successes(self):
 
-        # TODO later on make better use of the DB...
         successes = self.db.fetch(
-            "SELECT metadata, run_id FROM Master_View WHERE diffraction='Success';"
+            "SELECT metadata, run_id FROM Diffractions WHERE diffraction='Success';"
         )
 
         to_run = []
@@ -38,36 +37,12 @@ class DimplingDaemon(ProjectBase):
 
         lines = r.stdout.decode("utf-8").split('\n')
         for line in lines:
-            g = re.search('{}-dmpl_(\w+)-(\d)'.format(self.name), line) # TODO
+            g = re.search('{}-dmpl_(\w+)-(\d)'.format(self.name), line)
             if g:
                 grps = g.groups()
                 running.append( (grps[0], int(grps[1])) ) # metadata, run_id
 
         return running
-
-
-    def get_resolution(self, metadata, run):
-        return self._get_xds_res(metadata, run)
-
-
-    def _get_xds_res(self, metadata, run, which='cc'):
-
-        if which not in ['cc', 'isigma']:
-            raise ValueError("which must be `cc` or `isigma`")
-
-        crystal_id = self.metadata_to_id(metadata)
-
-        res = self.db.fetch(
-            "SELECT resolution_{} FROM XDS_Data_Reduction WHERE "
-            "crystal_id='{}' AND run_id={};".format(which, crystal_id, run)
-        )
-
-        if len(res) == 0:
-            raise RuntimeError('{} resolution result not in DB'.format(metadata))
-        elif len(res) > 1:
-            raise RuntimeError('{} has more than one resolution in DB'.format(metadata))
-
-        return res[0]['resolution_{}'.format(which)]
 
 
     def submit_unfinished(self, limit=None, verbose=True):
@@ -121,7 +96,8 @@ class DimplingDaemon(ProjectBase):
     def submit_run(self, metadata, run, debug=False, allow_overwrite=True):
 
         if not hasattr(self, 'reference_pdb'):
-            raise AttributeError() # TODO
+            raise AttributeError('reference_pdb field not set! This is'
+                                 'almost certainly a bug in the code.')
 
         outdir = self.metadata_to_outdir(metadata, run)
 
@@ -151,13 +127,9 @@ module load phenix/1.13
 metadata={metadata}_{run:03d}
 resolution={resolution}
 
-# >> static references (SHOULD COME FROM SQL!)
-# NOTE : TJL TODO
-# 
-# The following two lines make this project MPro specific
-# and highly brittle... we should improve them at the 
-# first opportunity
 ref_pdb={reference_pdb}
+
+# TODO fix this script...
 uni_free=/home/tjlane/opt/xia2pipe/scripts/uni_free.csh
 
 
@@ -229,7 +201,6 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
                   )
 
         # create a slurm sub script
-        # TODO : is this the best directory to make a tmp file?
         slurm_file='/tmp/dmpl-{}-{}-{}.sh'.format(self.name, metadata, run)
         with open(slurm_file, 'w') as f:
             f.write(batch_script)
@@ -251,24 +222,7 @@ if __name__ == '__main__':
     metadata  = 'l9p21_04'
     run = 1
 
-    dd = DimplingDaemon.load_config('config.yaml')
-
-    # --- tmp patch until db situation sorted ---
-    dd.sql_config = {
-        "host": "cfeld-vm04.desy.de",
-        "database": "SARS_COV_2_test",
-        "user": "reader",
-        "password": "sarsCovRead99!",
-        "connection_timeout": 60,
-        "auth_plugin": "mysql_native_password",
-        "autocommit": True,
-        }
-
-    import sys
-    sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/connector")
-    from MySQL.dev.connector import SQL
-
-    dd.db = SQL(dd.sql_config)
+    dd = DimplingDaemon.load_config('../configs/DIALS.yaml')
 
     # -------------------------------------------
     #dd.name = 'HELENDIALS'

@@ -53,6 +53,16 @@ def _get_average_model_b(pdb_path):
     return avg_model_b
 
 
+def get_single(query, crystal_id, run, field_name):
+    if len(query) == 0:
+        raise IOError('no {} in database for '
+                      'crystal_id={}, run={}'.format(field_name, crystal_id, run))
+    if len(query) > 1:
+        print(query)
+        raise IOError('found multiple {}`s in database for '
+                      'crystal_id={}, run={}'.format(field_name, crystal_id, run))
+    return query[0][field_name]
+
 
 def filetime(path):
     tstmp = os.path.getmtime(path)
@@ -70,17 +80,19 @@ class ProjectBase:
     def __init__(self, 
                  name,
                  pipeline,
-                 projpath,
+                 results_dir,
+                 rawdata_dirs=[], # can use database instead
                  spacegroup=None, 
                  unit_cell=None,
                  reference_pdb=None,
                  sql_config=None,
                  slurm_config=None):
 
-        self.name     = name
-        self.projpath = projpath
-
+        self.name          = name
         self.pipeline      = pipeline
+        self.results_dir   = results_dir
+        self.rawdata_dirs  = rawdata_dirs
+
         self.spacegroup    = spacegroup
         self.unit_cell     = unit_cell
         self.reference_pdb = reference_pdb
@@ -89,12 +101,13 @@ class ProjectBase:
             raise ValueError('pipeline: {} not valid'.format(pipeline))
 
         # ensure output dir exists
-        self.pipedir = "/asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc/{}".format(self.name)
-        if not os.path.exists(self.pipedir):
-            os.mkdir(self.pipedir)
+        if not os.path.exists(self.results_dir):
+            print('Creating: {}'.format(self.results_dir))
+            os.makedirs(self.results_dir)
 
         # connect to the SARS-COV-2 SQL db
         self.db = SQL(sql_config)
+        self.db.connect()
 
         # save the slurm configuration
         self.slurm_config = slurm_config
@@ -102,43 +115,100 @@ class ProjectBase:
         return
 
 
-    def metadata_to_id(self, metadata):
+    def metadata_to_id(self, metadata, run):
         cid = self.db.fetch(
             "SELECT crystal_id FROM Diffractions WHERE "
-            "metadata='{}';".format(metadata)
+            "metadata='{}' AND run_id='{}';".format(metadata, run)
         )
-        #assert len(cid) == 1, cid
+        if len(cid) == 0:
+            raise IOError('no crystal_id in database for '
+                          'metadata={}, run={}'.format(metadata, run))
+        if len( set([ x['crystal_id'] for x in cid ]) ) > 1: # check unique
+            print(cid)
+            raise IOError('found multiple irreconcilable crystal_id`s in db for '
+                          'metadata={}, run={}'.format(metadata, run))
         return cid[0]['crystal_id']
 
 
-    def raw_data_exists(self, metadata, run):
-        pth = pjoin(self.projpath, "raw/{}/*_{:03d}/*.cbf".format(metadata, run))
-        cbfs = glob(pth)
-        if len(cbfs) > 20:
-            data_exists = True
-        else:
-            data_exists = False
-        return data_exists
+    def id_to_metadata(self, crystal_id, run):
+        md = self.db.fetch(
+            "SELECT metadata FROM Diffractions WHERE "
+            "crystal_id='{}' AND run_id='{}';".format(crystal_id, run)
+        )
+        return get_single(md, crystal_id, run, 'metadata')
 
 
-    def metadata_to_rawdir(self, metadata, run):
+    def metadata_to_dataset_path(self, metadata, run):
         """
         Fetch the latest run directory for a given metadata by inspecting
         what is on disk.
 
-        TODO x-ref against database?
+        Specifically, this function returns the entire path to e.g. cbf files
+        not a generic dataset directory
         """
-        rawdir = pjoin(self.projpath, 
-                       "raw/{}/{}_{:03d}".format(metadata, metadata, run))
-        return rawdir
+
+        crystal_id = self.metadata_to_id(metadata, run)
+
+        # >> try to use the database
+        dp_qry = self.db.fetch(
+            "SELECT data_raw_filename_pattern FROM Diffractions WHERE "
+            "crystal_id='{}' AND run_id='{}';".format(crystal_id, run)
+        )
+        data_pattern = get_single(dp_qry, crystal_id, run, 'data_raw_filename_pattern')
+
+        if data_pattern: # is not None, aka database success
+            dataset_path = os.path.dirname(data_pattern)
+            ext          = os.path.basename(s).split('.')[-1]
+
+        # >> but if that fails, fall back on searching directories
+        else: # data_pattern is None        
+
+            possible_dirs = []
+            for rawdata_dir in self.rawdata_dirs:
+                dataset_path = pjoin(rawdata_dir,
+                                     "{}/{}_{:03d}/".format(metadata, metadata, run))
+                if os.path.exists(dataset_path):
+                    possible_dirs.append(dataset_path)
+
+            if len(possible_dirs) == 0:
+                raise IOError('cannot find data for {}_{:03d}'.format(metadata, run))
+            elif len(possible_dirs) > 1:
+                dataset_path = possible_dirs[0]
+                print(' ! warning ! found >1 data directory for:')
+                print('{}_{:03d}'.format(metadata, run))
+                print('using first: {}'.format(rawdir))
+            else:
+                dataset_path = possible_dirs[0]
+                ext = '.cbf' # TODO be smarter
+
+        return dataset_path, ext
+
+
+    def raw_data_exists(self, metadata, run, min_files=800):
+
+        try:
+            dataset_path, ext = self.metadata_to_dataset_path(metadata, run)
+        except IOError as e:
+            #print(e)
+            return False # for now assume data do not exist
+
+        pth = dataset_path + "*{}".format(ext)
+        n_files = len(glob(pth))
+
+        if n_files > min_files:
+            data_exists = True
+        else:
+            data_exists = False
+
+        return data_exists
 
 
     def metadata_to_outdir(self, metadata, run):
-        s = pjoin(self.projpath, 
-                  "scratch_cc/{}/{}/{}_{:03d}".format(self.name, 
-                                                      metadata,
-                                                      metadata,
-                                                      run))
+        s = pjoin(self.results_dir, 
+                  "{}/{}/{}_{:03d}".format(self.name, 
+                                           metadata,
+                                           metadata,
+                                           run))
         return s
 
 
@@ -150,11 +220,22 @@ class ProjectBase:
         # ^ ---------- outdir ------------ ^
 
         outdir = self.metadata_to_outdir(metadata, run)
-        mtz_path = self.xia_data(metadata, run)['mtz_path']
+
+        #json_path = pjoin(outdir,
+        #                  '{}_{:03d}'.format(metadata, run),
+        #                  'scale/xia2.json')
         errpth = pjoin(outdir, 'xia2.error')
+
+        mtz_path = pjoin(outdir,
+                         "DataFiles/SARSCOV2_{}_{:03d}_free.mtz".format(metadata, run))
 
         if os.path.exists(mtz_path):
             result = 'finished'
+            #mtz_path = self.xia_data(metadata, run)['mtz_path']
+            #if os.path.exists(mtz_path):
+            #    result = 'finished'
+            #else:
+            #    result = 'procfail'
         elif os.path.exists(errpth):
             result = 'procfail'
         else:
@@ -209,7 +290,7 @@ class ProjectBase:
 
         # >>> format the output
         data_dict = {
-                    'crystal_id' :   self.metadata_to_id(metadata),
+                    'crystal_id' :   self.metadata_to_id(metadata, run),
                     'run_id':        run,
                     'analysis_time': filetime(mtz_path),
                     'folder_path':   outdir,
@@ -234,13 +315,31 @@ class ProjectBase:
 
 
     def get_resolution(self, metadata, run):
-            """
-            """
             # this function is here to allow later modification of,
             # for example, the resolution cut between the reduction
             # and refinement stages of the pipeline
             # TODO : think about the code structure here
             return self.xia_data(metadata, run)['resolution_cc']
+
+
+    def _fetch_res(self, metadata, run, which='cc'):
+
+        crystal_id = self.metadata_to_id(metadata, run)
+
+        if which not in ['cc', 'isigma']:
+            raise ValueError("which must be `cc` or `isigma`")
+
+        res = self.db.fetch(
+            "SELECT resolution_{} FROM SARS_COV_2_Analysis_v2.Data_Reduction WHERE "
+            "crystal_id='{}' AND run_id={};".format(which, crystal_id, run)
+        )
+
+        if len(res) == 0:
+            raise RuntimeError('{} resolution result not in DB'.format(metadata))
+        elif len(res) > 1:
+            raise RuntimeError('{} has more than one resolution in DB'.format(metadata))
+
+        return res[0]['resolution_{}'.format(which)]
 
 
     def dmpl_result(self, metadata, run):
@@ -287,7 +386,7 @@ class ProjectBase:
         log.read(log_path)
 
         data_dict = {
-                     #'data_reduction_id':
+                     #'data_reduction_id':   # TODO
                      'analysis_time':        filetime(mtz_path),
                      'folder_path':          outdir,
                      'initial_pdb_path':     self.reference_pdb,
@@ -313,14 +412,16 @@ class ProjectBase:
 
         proj_config = config['project']
 
-        # TODO better error reporting
-        name     = proj_config.pop('name')
-        pipeline = proj_config.pop('pipeline')
-        projdir  = proj_config.pop('projpath')
+        try:
+            name         = proj_config.pop('name')
+            pipeline     = proj_config.pop('pipeline')
+            results_dir  = proj_config.pop('results_dir')
+        except KeyError as e:
+            raise IOError('Missing required parameter in config.yaml\n', e)
 
         return cls(name,
                    pipeline,
-                   projdir,
+                   results_dir,
                    sql_config=config['sql'],
                    slurm_config=config['slurm'],
                    **proj_config)
@@ -328,14 +429,13 @@ class ProjectBase:
 
 if __name__ == '__main__':
 
-
-
-    pb = ProjectBase.load_config('config.yaml')
+    pb = ProjectBase.load_config('../configs/DIALS.yaml')
 
     for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
-        print(pb.metadata_to_id(md))
+        print(pb.metadata_to_id(md, run))
         print(pb.raw_data_exists(md, run))
-        print(pb.metadata_to_rawdir(md, run))
+        print(pb.metadata_to_dataset_path(md, run))
 
         print(pb.xia_data(md, run))
         print(pb.dmpl_data(md, run))
+

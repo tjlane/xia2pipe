@@ -34,11 +34,11 @@ class XiaDaemon(ProjectBase):
         if verbose:
             print('Fetched from database:           {}'.format(len(to_run)))
 
+        # remove those for which we cannot locate the raw data
         to_rm = []
         for md in to_run:
             if not self.raw_data_exists(*md):
                 to_rm.append(md)
-                #print('warning! ds {} in DB but not on disk'.format(md)) # TODO
         to_run = to_run - set(to_rm)
 
         if verbose:
@@ -106,8 +106,8 @@ class XiaDaemon(ProjectBase):
     def submit_run(self, metadata, run, debug=False, allow_overwrite=True):
 
         # first, create the directory sub-structure
-        rawdir = self.metadata_to_rawdir(metadata, run)
-        outdir = self.metadata_to_outdir(metadata, run)
+        rawdir, _ = self.metadata_to_dataset_path(metadata, run)
+        outdir    = self.metadata_to_outdir(metadata, run)
 
         if not os.path.exists(outdir):
             os.makedirs(outdir)
@@ -162,7 +162,6 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 
                   )
 
         # create a slurm sub script
-        # TODO : is this the best directory to make a tmp file?
         slurm_file='/tmp/xia2-{}-{}-{}.sh'.format(self.name, metadata, run)
         with open(slurm_file, 'w') as f:
             f.write(batch_script)
@@ -181,11 +180,11 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 
 
 if __name__ == '__main__':
 
-    xd = XiaDaemon.load_config('config.yaml')
+    xd = XiaDaemon.load_config('../configs/DIALS.yaml')
 
     #xd.name = 'HELENDIALS'
     #xd.submit_run('l10p07_08', 1)
 
-    xd.submit_unfinished(verbose=True, limit=None)
+    xd.submit_unfinished(verbose=True, limit=0)
 
 

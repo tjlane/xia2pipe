@@ -17,13 +17,18 @@ Consists of 3 main parts:
 
 -------------------------------------------------------------------------------
 
-## To Do
+## known issues
+- doing lots of small SQL queries... 
 
-- check resolution cutting
-- SQL ingestion
+## To Do : Short-Term
 - flexible partition for slurm jobs
 - pass optional params to dials
+- scripts to quickly submit jobs
+- SQL ingestion
 - all daemons in one loop
+
+## To Do : Long-Term
+- re-structure code so crystal_id is first class, not metadata (!)
 - fix uni_free to make it less brittle
 
 
