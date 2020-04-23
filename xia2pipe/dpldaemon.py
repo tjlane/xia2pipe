@@ -110,7 +110,8 @@ class DimplingDaemon(ProjectBase):
         # then write and sub the slurm script
         batch_script="""#!/bin/bash
 
-#SBATCH --partition=cfel
+#SBATCH --partition={partition}
+#SBATCH --reservation={rsrvtn}
 #SBATCH --nodes=1
 #SBATCH --chdir     {outdir}
 #SBATCH --job-name  {name}-dmpl_{metadata}-{run}
@@ -195,6 +196,8 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
                     name          = self.name,
                     metadata      = metadata,
                     run           = run,
+                    partition     = self.slurm_config.get('partition', 'all'),
+                    rsrvtn        = self.slurm_config.get('reservation', ''),
                     outdir        = outdir,
                     reference_pdb = self.reference_pdb,
                     resolution    = resoln,

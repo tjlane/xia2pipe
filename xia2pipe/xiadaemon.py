@@ -127,15 +127,11 @@ class XiaDaemon(ProjectBase):
         else:
             ucstr = ''
 
-#SBATCH --partition=cfel
-
-#SBATCH --partition=all
-#SBATCH --reservation=covid
-
         # then write and sub the slurm script
         batch_script="""#!/bin/bash
 
-#SBATCH --partition=cfel
+#SBATCH --partition={partition}
+#SBATCH --reservation={rsrvtn}
 #SBATCH --nodes=1
 #SBATCH --chdir     {outdir}
 #SBATCH --job-name  {name}_{metadata}-{run}
@@ -151,14 +147,16 @@ imgs={rawdir}
 xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 {sgstr} {ucstr} $imgs
 
         """.format(
-                    name     = self.name,
-                    metadata = metadata,
-                    run      = run,
-                    pipeline = self.pipeline,
-                    rawdir   = rawdir,
-                    outdir   = outdir,
-                    sgstr    = sgstr,
-                    ucstr    = ucstr
+                    name      = self.name,
+                    metadata  = metadata,
+                    run       = run,
+                    partition = self.slurm_config.get('partition', 'all'),
+                    rsrvtn    = self.slurm_config.get('reservation', ''),
+                    pipeline  = self.pipeline,
+                    rawdir    = rawdir,
+                    outdir    = outdir,
+                    sgstr     = sgstr,
+                    ucstr     = ucstr
                   )
 
         # create a slurm sub script
