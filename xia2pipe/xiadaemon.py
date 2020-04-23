@@ -116,16 +116,9 @@ class XiaDaemon(ProjectBase):
                 raise IOError('output directory already exists...')
             # if we allow overwrite, just continue...
 
-        # optionally make flags setting the SG and UC
-        if self.spacegroup is not None:
-            sgstr = 'spacegroup={}'.format(self.spacegroup)
-        else:
-            sgstr = ''
-
-        if self.unit_cell is not None:
-            ucstr = 'unit_cell={}'.format(self.unit_cell)
-        else:
-            ucstr = ''
+        # format xia2 parameters as: param1=X param2=Y ...
+        xp_list = ['{}={}'.format(k,v) for (k,v) in self.xia2_config.items()]
+        xia2_params = ' '.join(xp_list)
 
         # then write and sub the slurm script
         batch_script="""#!/bin/bash
@@ -144,7 +137,7 @@ source /etc/profile.d/modules.sh
 module load ccp4/7.0
 
 imgs={rawdir}
-xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 {sgstr} {ucstr} $imgs
+xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 {x2prms} $imgs
 
         """.format(
                     name      = self.name,
@@ -155,8 +148,7 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 
                     pipeline  = self.pipeline,
                     rawdir    = rawdir,
                     outdir    = outdir,
-                    sgstr     = sgstr,
-                    ucstr     = ucstr
+                    x2prms    = xia2_params,
                   )
 
         # create a slurm sub script
@@ -179,10 +171,7 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 
 if __name__ == '__main__':
 
     xd = XiaDaemon.load_config('../configs/DIALS.yaml')
-
-    #xd.name = 'HELENDIALS'
     #xd.submit_run('l10p07_08', 1)
-
     xd.submit_unfinished(verbose=True, limit=0)
 
 

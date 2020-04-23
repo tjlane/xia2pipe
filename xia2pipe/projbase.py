@@ -82,19 +82,15 @@ class ProjectBase:
                  pipeline,
                  results_dir,
                  rawdata_dirs=[], # can use database instead
-                 spacegroup=None, 
-                 unit_cell=None,
                  reference_pdb=None,
                  sql_config=None,
-                 slurm_config=None):
+                 slurm_config=None,
+                 xia2_config=None):
 
         self.name          = name
         self.pipeline      = pipeline
         self.results_dir   = results_dir
         self.rawdata_dirs  = rawdata_dirs
-
-        self.spacegroup    = spacegroup
-        self.unit_cell     = unit_cell
         self.reference_pdb = reference_pdb
 
         if pipeline.lower() not in ['dials', '2d', '3d', '3dii']:
@@ -109,8 +105,9 @@ class ProjectBase:
         self.db = SQL(sql_config)
         self.db.connect()
 
-        # save the slurm configuration
+        # save the slurm, xia2 configuration
         self.slurm_config = slurm_config
+        self.xia2_config  = xia2_config
 
         return
 
@@ -417,6 +414,7 @@ class ProjectBase:
                    results_dir,
                    sql_config=config['sql'],
                    slurm_config=config['slurm'],
+                   xia2_config=config['xia2'],
                    **proj_config)
 
 
