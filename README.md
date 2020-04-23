@@ -24,6 +24,7 @@ Consists of 3 main parts:
 - flexible partition for slurm jobs
 - pass optional params to dials
 - all daemons in one loop
+- fix uni_free to make it less brittle
 
 
 

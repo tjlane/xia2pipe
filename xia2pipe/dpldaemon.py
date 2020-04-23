@@ -70,24 +70,6 @@ class DimplingDaemon(ProjectBase):
         return res[0]['resolution_{}'.format(which)]
 
 
-    def _get_aimless_res(self, metadata, run):
-
-        base = self.metadata_to_outdir(metadata, run)
-        flnm = 'LogFiles/SARSCOV2_{}_{:03d}_aimless_xml.xml'.format(metadata, run)
-
-        tree = ET.parse(pjoin(base, flnm))
-        root = tree.getroot()
-
-        e = root.findall('./Result/Dataset/ResolutionHigh/Overall')
-
-        if len(e) == 1:
-            res = e[0].text.strip()
-        else:
-            raise IOError('2 resolution entries in aimless?')
-
-        return res
-
-
     def submit_unfinished(self, limit=None, verbose=True):
 
         # TODO
@@ -138,6 +120,9 @@ class DimplingDaemon(ProjectBase):
 
     def submit_run(self, metadata, run, debug=False, allow_overwrite=True):
 
+        if not hasattr(self, 'reference_pdb'):
+            raise AttributeError() # TODO
+
         outdir = self.metadata_to_outdir(metadata, run)
 
         try:
@@ -172,7 +157,7 @@ resolution={resolution}
 # The following two lines make this project MPro specific
 # and highly brittle... we should improve them at the 
 # first opportunity
-ref_pdb="/asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/SARS-COV-mpro_refine_110_edited.pdb"
+ref_pdb={reference_pdb}
 uni_free=/home/tjlane/opt/xia2pipe/scripts/uni_free.csh
 
 
@@ -235,11 +220,12 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
   {outdir}
 
         """.format(
-                    name       = self.name,
-                    metadata   = metadata,
-                    run        = run,
-                    outdir     = outdir,
-                    resolution = resoln,
+                    name          = self.name,
+                    metadata      = metadata,
+                    run           = run,
+                    outdir        = outdir,
+                    reference_pdb = self.reference_pdb,
+                    resolution    = resoln,
                   )
 
         # create a slurm sub script
@@ -291,6 +277,6 @@ if __name__ == '__main__':
     #dd.submit_unfinished(limit=None)
     # -------------------------------------------
 
-    dd.submit_unfinished(limit=None)
+    dd.submit_unfinished(limit=0)
 
 
