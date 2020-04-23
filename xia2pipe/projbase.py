@@ -220,22 +220,15 @@ class ProjectBase:
         # ^ ---------- outdir ------------ ^
 
         outdir = self.metadata_to_outdir(metadata, run)
-
-        #json_path = pjoin(outdir,
-        #                  '{}_{:03d}'.format(metadata, run),
-        #                  'scale/xia2.json')
         errpth = pjoin(outdir, 'xia2.error')
 
+        # note : mtz path is fixed in xia_data() as well...
+        #        not ideal software engineering but OK for now
         mtz_path = pjoin(outdir,
                          "DataFiles/SARSCOV2_{}_{:03d}_free.mtz".format(metadata, run))
 
         if os.path.exists(mtz_path):
             result = 'finished'
-            #mtz_path = self.xia_data(metadata, run)['mtz_path']
-            #if os.path.exists(mtz_path):
-            #    result = 'finished'
-            #else:
-            #    result = 'procfail'
         elif os.path.exists(errpth):
             result = 'procfail'
         else:
