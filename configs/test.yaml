@@ -10,10 +10,10 @@ project:
   reference_pdb:        '/asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/SARS-COV-mpro_refine_110_edited.pdb'
 
 sql:
-  host:                 'cfeld-vm04.desy.de'
+  host:                 'cfeld-vm05.desy.de'
   database:             'SARS_COV_2_Analysis_v2_test'
-  user:                 'sarscov2' 
-  password:             'sarCovDb'
+  user:                 'cfel-sc' 
+  password:             '!cfel!001D'
   connection_timeout:   60
   auth_plugin:          'mysql_native_password'
   autocommit:           True
