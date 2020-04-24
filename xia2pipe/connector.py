@@ -240,10 +240,8 @@ class SQL(object):
             print("{}: MySQL: {}".format(datetime.now().time(), query))
 
         cursor = self.execute(query)
-        #result = cursor.fetchall()
-
         cursor.close()
 
-        return #result
+        return
 
 

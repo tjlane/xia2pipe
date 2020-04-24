@@ -123,6 +123,11 @@ class ProjectBase:
         return '{}-{}'.format(self.name, self.pipeline)
 
 
+    @property
+    def _analysis_db(self):
+        return self.db.config['database']
+
+
     def metadata_to_id(self, metadata, run):
         cid = self.db.select('crystal_id',
                              'SARS_COV_2_v2.Diffractions',
@@ -151,7 +156,7 @@ class ProjectBase:
         id per crystal.
         """
         qid = self.db.select('data_reduction_id',
-                             'SARS_COV_2_Analysis_v2.Data_Reduction',
+                             '{}.Data_Reduction'.format(self._analysis_db),
                              {'crystal_id' : crystal_id, 'run_id' : run,
                              'method' : self.method_name })
         return get_single(qid, crystal_id, run, 'data_reduction_id') 
@@ -165,7 +170,7 @@ class ProjectBase:
         # probably dont need this function TODO
         data_reduction_id = self.get_reduction_id(crystal_id, run)
         qid = self.db.select('refinement_id',
-                             'SARS_COV_2_Analysis_v2.Refinement',
+                             '{}.Refinement'.format(self._analysis_db),
                              {'data_reduction_id' : data_reduction_id, 
                               'method' : (self.method_name + '-dmpl')})
         return get_single(qid, crystal_id, run, 'refinement_id') 
