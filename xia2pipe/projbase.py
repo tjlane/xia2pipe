@@ -114,7 +114,7 @@ class ProjectBase:
 
     def metadata_to_id(self, metadata, run):
         cid = self.db.fetch(
-            "SELECT crystal_id FROM Diffractions WHERE "
+            "SELECT crystal_id FROM SARS_COV_2_v2.Diffractions WHERE "
             "metadata='{}' AND run_id='{}';".format(metadata, run)
         )
         if len(cid) == 0:
@@ -129,7 +129,7 @@ class ProjectBase:
 
     def id_to_metadata(self, crystal_id, run):
         md = self.db.fetch(
-            "SELECT metadata FROM Diffractions WHERE "
+            "SELECT metadata FROM SARS_COV_2_v2.Diffractions WHERE "
             "crystal_id='{}' AND run_id='{}';".format(crystal_id, run)
         )
         return get_single(md, crystal_id, run, 'metadata')
@@ -148,7 +148,7 @@ class ProjectBase:
 
         # >> try to use the database
         dp_qry = self.db.fetch(
-            "SELECT data_raw_filename_pattern FROM Diffractions WHERE "
+            "SELECT data_raw_filename_pattern FROM SARS_COV_2_v2.Diffractions WHERE "
             "crystal_id='{}' AND run_id='{}';".format(crystal_id, run)
         )
         data_pattern = get_single(dp_qry, crystal_id, run, 'data_raw_filename_pattern')
@@ -314,22 +314,25 @@ class ProjectBase:
 
     def _fetch_res(self, metadata, run, which='cc'):
 
+        # TODO delete this function
+
         crystal_id = self.metadata_to_id(metadata, run)
 
         if which not in ['cc', 'isigma']:
             raise ValueError("which must be `cc` or `isigma`")
 
         res = self.db.fetch(
-            "SELECT resolution_{} FROM SARS_COV_2_Analysis_v2.Data_Reduction WHERE "
+            "SELECT resolution_{}, method FROM SARS_COV_2_Analysis_v2.Data_Reduction WHERE "
             "crystal_id='{}' AND run_id={};".format(which, crystal_id, run)
         )
 
         if len(res) == 0:
             raise RuntimeError('{} resolution result not in DB'.format(metadata))
-        elif len(res) > 1:
-            raise RuntimeError('{} has more than one resolution in DB'.format(metadata))
 
-        return res[0]['resolution_{}'.format(which)]
+        #print(res)
+        ret = [ r['resolution_{}'.format(which)] for r in res]
+
+        return ret
 
 
     def dmpl_result(self, metadata, run):
@@ -412,9 +415,9 @@ class ProjectBase:
         return cls(name,
                    pipeline,
                    results_dir,
-                   sql_config=config['sql'],
-                   slurm_config=config['slurm'],
-                   xia2_config=config['xia2'],
+                   sql_config=config.get('sql', None),
+                   slurm_config=config.get('slurm', None),
+                   xia2_config=config.get('xia2', None),
                    **proj_config)
 
 

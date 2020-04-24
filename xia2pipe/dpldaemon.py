@@ -3,10 +3,11 @@ import os
 import re
 import time
 import subprocess
+import argparse
 import xml.etree.ElementTree as ET
 from os.path import join as pjoin
 
-from projbase import ProjectBase
+from xia2pipe.projbase import ProjectBase
 
 
 class DimplingDaemon(ProjectBase):
@@ -14,7 +15,8 @@ class DimplingDaemon(ProjectBase):
     def fetch_xia_successes(self):
 
         successes = self.db.fetch(
-            "SELECT metadata, run_id FROM Diffractions WHERE diffraction='Success';"
+            "SELECT metadata, run_id FROM SARS_COV_2_v2.Diffractions "
+            "WHERE diffraction='Success';"
         )
 
         to_run = []
@@ -104,7 +106,8 @@ class DimplingDaemon(ProjectBase):
         try:
             resoln = self.get_resolution(metadata, run)
         except RuntimeError as e:
-            print('{}, {} :'.format(metadata, run), e)
+            print('cannot get resolution for '
+                  '{}, {} :'.format(metadata, run), e)
             return
 
         # then write and sub the slurm script
@@ -220,20 +223,27 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
         return
 
 
+def script():
+
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('config', type=str,
+                        help='the configuration yaml file to use')
+    parser.add_argument('--limit', type=int, default=None,
+                        help='max number of jobs to submit')
+    args = parser.parse_args()
+
+    dd = DimplingDaemon.load_config(args.config)
+    dd.submit_unfinished(verbose=True, limit=args.limit)
+
+    return
+
+
 if __name__ == '__main__':
 
     metadata  = 'l9p21_04'
     run = 1
 
     dd = DimplingDaemon.load_config('../configs/DIALS.yaml')
-
-    # -------------------------------------------
-    #dd.name = 'HELENDIALS'
-    #dd.get_resolution = lambda x,y : "1.7"
-    #dd.submit_run('l10p07_08', 1)
-    #dd.submit_unfinished(limit=None)
-    # -------------------------------------------
-
     dd.submit_unfinished(limit=0)
 
 

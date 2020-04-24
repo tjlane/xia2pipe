@@ -4,9 +4,11 @@ import sys
 import re
 import time
 import subprocess
+import argparse
+
 from glob import glob
 
-from projbase import ProjectBase
+from xia2pipe.projbase import ProjectBase
 
 
 class XiaDaemon(ProjectBase):
@@ -36,12 +38,13 @@ class XiaDaemon(ProjectBase):
 
         # remove those for which we cannot locate the raw data
         to_rm = []
-        for md in to_run:
+        for md in list(to_run):
             if not self.raw_data_exists(*md):
                 to_rm.append(md)
         to_run = to_run - set(to_rm)
 
         if verbose:
+            print('Cannot locate data for:          {}'.format(len(to_rm)))
             print('Diffracting crystals collected:  {}'.format(len(to_run)))
 
         # see which not already finished
@@ -78,7 +81,7 @@ class XiaDaemon(ProjectBase):
 
     def fetch_diffraction_successes(self):
         successes = self.db.fetch(
-            "SELECT metadata, run_id FROM Master_View WHERE diffraction='Success';"
+            "SELECT metadata, run_id FROM SARS_COV_2_v2.Diffractions WHERE diffraction='Success';"
         )
         return [ (s['metadata'], s['run_id']) for s in successes ]
 
@@ -117,8 +120,11 @@ class XiaDaemon(ProjectBase):
             # if we allow overwrite, just continue...
 
         # format xia2 parameters as: param1=X param2=Y ...
-        xp_list = ['{}={}'.format(k,v) for (k,v) in self.xia2_config.items()]
-        xia2_params = ' '.join(xp_list)
+        if self.xia2_config:
+            xp_list = ['{}={}'.format(k,v) for (k,v) in self.xia2_config.items()]
+            xia2_params = ' '.join(xp_list)
+        else:
+            xia2_params = ''
 
         # then write and sub the slurm script
         batch_script="""#!/bin/bash
@@ -166,6 +172,21 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 
             os.remove(slurm_file)
 
         return
+
+
+def script():
+
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('config', type=str,
+                        help='the configuration yaml file to use')
+    parser.add_argument('--limit', type=int, default=None,
+                        help='max number of jobs to submit')
+    args = parser.parse_args()
+
+    xd = XiaDaemon.load_config(args.config)
+    xd.submit_unfinished(verbose=True, limit=args.limit)
+
+    return
 
 
 if __name__ == '__main__':
