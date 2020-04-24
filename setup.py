@@ -11,7 +11,7 @@ setup(name='xia2pipe',
       entry_points = {
           'console_scripts': [
               'x2p.reduce=xia2pipe.xiadaemon:script',
-              'x2p.refine=xia2pipe.dpldaemon:script',
+              'x2p.refine=xia2pipe.dmpldaemon:script',
           ],
       },
       zip_safe=False)

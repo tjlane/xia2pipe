@@ -103,6 +103,11 @@ class ProjectBase:
         return
 
 
+    @property
+    def method_name(self):
+        return '{}-{}'.format(self.name, self.pipeline)
+
+
     def metadata_to_id(self, metadata, run):
         cid = self.db.select('crystal_id',
                              'SARS_COV_2_v2.Diffractions',
@@ -123,6 +128,33 @@ class ProjectBase:
                             'SARS_COV_2_v2.Diffractions',
                             {'crystal_id' : crystal_id, 'run_id' : run})
         return get_single(md, crystal_id, run, 'metadata')
+
+
+    def get_reduction_id(self, crystal_id, run):
+        """
+        We assume one name/pipeline combo results in a unique reduction
+        id per crystal.
+        """
+        qid = self.db.select('data_reduction_id',
+                             'SARS_COV_2_Analysis_v2.Data_Reduction',
+                             {'crystal_id' : crystal_id, 'run_id' : run,
+                             'method' : self.method_name })
+        return get_single(qid, crystal_id, run, 'data_reduction_id') 
+
+
+    def get_refinement_id(self, crystal_id, run):
+        """ 
+        We assume one name/pipeline combo results in a unique refinement
+        id per crystal.
+        """
+        # probably dont need this function TODO
+        data_reduction_id = self.get_reduction_id(crystal_id, run)
+        qid = self.db.select('refinement_id',
+                             'SARS_COV_2_Analysis_v2.Refinement',
+                             {'data_reduction_id' : data_reduction_id, 
+                              'run_id' : run,
+                              'method' : (self.method_name + '-dmpl')})
+        return get_single(qid, crystal_id, run, 'refinement_id') 
 
 
     def metadata_to_dataset_path(self, metadata, run, skip_db=False):
@@ -283,7 +315,7 @@ class ProjectBase:
                     'analysis_time': filetime(mtz_path),
                     'folder_path':   outdir,
                     'mtz_path':      mtz_path,
-                    'method':        '{}-{}'.format(self.name, self.pipeline),
+                    'method':        self.method_name,
                     'resolution_cc': ss['High resolution limit'][0],
                     'a':             cell[0],
                     'b':             cell[1],
@@ -324,28 +356,6 @@ class ProjectBase:
             return self.xia_data(metadata, run)['resolution_cc']
 
 
-    def _fetch_res(self, metadata, run, which='cc'):
-
-        # TODO delete this function
-
-        crystal_id = self.metadata_to_id(metadata, run)
-
-        if which not in ['cc', 'isigma']:
-            raise ValueError("which must be `cc` or `isigma`")
-
-        res = self.db.select('resolution_{}'.format(which), 
-                             'SARS_COV_2_Analysis_v2.Data_Reduction',
-                             {'crystal_id' : crystal_id, 'run_id' : run})
-
-        if len(res) == 0:
-            raise RuntimeError('{} resolution result not in DB'.format(metadata))
-
-        #print(res)
-        ret = [ r['resolution_{}'.format(which)] for r in res]
-
-        return ret
-
-
     def dmpl_result(self, metadata, run):
 
         outdir = self.metadata_to_outdir(metadata, run)
@@ -371,8 +381,8 @@ class ProjectBase:
         # -1 here grabs the last round of REFMAC refinement
         fmt = lambda f : float(f.split(',')[-1].strip(', []'))
 
+        cid = self.metadata_to_id(metadata, run)
         outdir = self.metadata_to_outdir(metadata, run)
-        method_name = '{}-{}-dmpl'.format(self.name, self.pipeline)
 
         mtz_name = "{}_{:03d}_postphenix_out.mtz".format(metadata, run)
         mtz_path = pjoin(outdir, mtz_name)
@@ -390,13 +400,13 @@ class ProjectBase:
         log.read(log_path)
 
         data_dict = {
-                     #'data_reduction_id':   # TODO
+                     'data_reduction_id':    get_reduction_id(cid, run),
                      'analysis_time':        filetime(mtz_path),
                      'folder_path':          outdir,
                      'initial_pdb_path':     self.reference_pdb,
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
-                     'method':               method_name,
+                     'method':               self.method_name + '-dmpl',
                      'resolution_cut':       self.get_resolution(metadata, run),
                      'rfree':                fmt(log['refmac5 restr']['free_r']),
                      'rwork':                fmt(log['refmac5 restr']['overall_r']),
@@ -410,8 +420,17 @@ class ProjectBase:
 
 
     def fetch_dmpl_successes(self):
-        raise NotImplementedError() # TODO
-        return
+
+        successes = self.db.select('metadata, run_id',
+                                   'SARS_COV_2_v2.Diffractions',
+                                   {'diffraction' : 'Success'})
+
+        to_run = []
+        for md in [ (s['metadata'], s['run_id']) for s in successes ]:
+            if self.dmpl_result(*md) == 'finished':
+                to_run.append(md)
+
+        return to_run
 
 
     @classmethod
@@ -441,11 +460,18 @@ if __name__ == '__main__':
 
     pb = ProjectBase.load_config('../configs/DIALS.yaml')
 
-    for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
-        print(pb.metadata_to_id(md, run))
-        print(pb.raw_data_exists(md, run))
-        print(pb.metadata_to_dataset_path(md, run))
+    print(pb.fetch_dmpl_successes())
 
-        print(pb.xia_data(md, run))
-        print(pb.dmpl_data(md, run))
+    for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
+        pass
+        #print(pb.metadata_to_id(md, run))
+        #print(pb.raw_data_exists(md, run))
+        #print(pb.metadata_to_dataset_path(md, run))
+
+        #cid = pb.metadata_to_id(md, run)
+        #print(pb.get_reduction_id(cid, run))
+        #print(pb.get_refinement_id(cid, run))
+
+        #print(pb.xia_data(md, run))
+        #print(pb.dmpl_data(md, run))
 
