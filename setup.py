@@ -12,6 +12,7 @@ setup(name='xia2pipe',
           'console_scripts': [
               'x2p.reduce=xia2pipe.xiadaemon:script',
               'x2p.refine=xia2pipe.dmpldaemon:script',
+              'x2p.sync=xia2pipe.dbdaemon:script',
           ],
       },
       zip_safe=False)

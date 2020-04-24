@@ -211,7 +211,7 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
 
 def script():
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser(description='Submit new refinement jobs.')
     parser.add_argument('config', type=str,
                         help='the configuration yaml file to use')
     parser.add_argument('--limit', type=int, default=None,

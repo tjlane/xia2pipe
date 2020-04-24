@@ -176,7 +176,7 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 
 
 def script():
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser(description='Submit new reduction jobs.')
     parser.add_argument('config', type=str,
                         help='the configuration yaml file to use')
     parser.add_argument('--limit', type=int, default=None,

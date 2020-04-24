@@ -1,6 +1,8 @@
 
+import time
+import argparse
 
-from projbase import ProjectBase
+from xia2pipe.projbase import ProjectBase
 
 
 class DBDaemon(ProjectBase):
@@ -56,9 +58,11 @@ class DBDaemon(ProjectBase):
             else:
                 n_already += 1
 
-        print('> {}'.format(table))
+        print('')
+        print('> {:14s} ---'.format(table))
         print('inserted:       {}'.format(n_inserted))
         print('already in db:  {}'.format(n_already))
+        print('')
 
         return
 
@@ -77,9 +81,28 @@ class DBDaemon(ProjectBase):
         return
 
 
+def script():
+
+    parser = argparse.ArgumentParser(description='update the database with processed values')
+    parser.add_argument('config', type=str,
+                        help='the configuration yaml file to use')
+    args = parser.parse_args()
+
+    dbd = DBDaemon.load_config(args.config)
+
+    t = time.localtime()
+    current_time = time.strftime("%H:%M:%S", t)
+    print('')
+    print('>> DB daemon synching latest results...')
+    print('>>', current_time)
+    dbd.update_xia()
+    dbd.update_dimpling()
+
+    return
+
 if __name__ == '__main__':
     dbd = DBDaemon.load_config('../configs/test.yaml')
     dbd.update_xia()
-    #dbd.update_dimpling()
+    dbd.update_dimpling()
 
 

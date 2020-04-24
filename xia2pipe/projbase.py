@@ -167,8 +167,7 @@ class ProjectBase:
         qid = self.db.select('refinement_id',
                              'SARS_COV_2_Analysis_v2.Refinement',
                              {'data_reduction_id' : data_reduction_id, 
-                              'run_id' : run,
-                              'method' : (self.method_name + '_dmpl')})
+                              'method' : (self.method_name + '-dmpl')})
         return get_single(qid, crystal_id, run, 'refinement_id') 
 
 
@@ -421,7 +420,7 @@ class ProjectBase:
                      'initial_pdb_path':     self.reference_pdb,
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
-                     'method':               self.method_name + '_dmpl',
+                     'method':               self.method_name + '-dmpl',
                      'resolution_cut':       self.get_resolution(metadata, run),
                      'rfree':                fmt(log['refmac5 restr']['free_r']),
                      'rwork':                fmt(log['refmac5 restr']['overall_r']),
