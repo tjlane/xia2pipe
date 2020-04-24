@@ -104,15 +104,8 @@ class SQL(object):
         if not self.is_connected():
             self.connect()
 
-        # get the cursor
         cursor = self.connection.cursor(dictionary=dictionary)
-
-        try:
-            cursor.execute(query)
-
-        except connector.Error as err:
-
-            return err
+        cursor.execute(query)
 
         return cursor
 
@@ -224,8 +217,8 @@ class SQL(object):
         data is a dictionary, eg.  
         """
 
-        key = "INSERT INTO {}(".format(table)
-        value = "values("
+        key = "INSERT INTO {} (".format(table)
+        value = "values ("
 
         for ki, vi in data.items():
 
@@ -247,10 +240,10 @@ class SQL(object):
             print("{}: MySQL: {}".format(datetime.now().time(), query))
 
         cursor = self.execute(query)
-        result = cursor.fetchall()
+        #result = cursor.fetchall()
 
         cursor.close()
 
-        return result
+        return #result
 
 

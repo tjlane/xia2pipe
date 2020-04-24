@@ -191,7 +191,7 @@ def script():
 
 if __name__ == '__main__':
 
-    xd = XiaDaemon.load_config('../configs/DIALS.yaml')
+    xd = XiaDaemon.load_config('../configs/test.yaml')
     #xd.submit_run('l10p07_08', 1)
     xd.submit_unfinished(verbose=True, limit=0)
 

@@ -229,7 +229,7 @@ if __name__ == '__main__':
     metadata  = 'l9p21_04'
     run = 1
 
-    dd = DimplingDaemon.load_config('../configs/DIALS.yaml')
+    dd = DimplingDaemon.load_config('../configs/test.yaml')
     dd.submit_unfinished(limit=0)
 
 

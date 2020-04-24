@@ -33,6 +33,21 @@ def _count_blobs(log_handle):
 
 def _get_average_model_b(pdb_path):
 
+    p = 'MEAN B VALUE\s+\(OVERALL, A\*\*2\) :\s+(\d+.\d+)'
+
+    with open(pdb_path, 'r') as f:
+        g = re.search(p, f.read())
+
+    model_b = 'NULL'
+    if g:
+        if len(g.groups()) == 1:
+            model_b = float(g.groups()[0])
+
+    return model_b
+
+
+def _phenix_model_b(pdb_path):
+
     ret = subprocess.run('phenix.b_factor_statistics {}'.format(pdb_path),
                          capture_output=True,
                          shell=True)
@@ -93,7 +108,7 @@ class ProjectBase:
             print('Creating: {}'.format(self.results_dir))
             os.makedirs(self.results_dir)
 
-        # connect to the SARS-COV-2 SQL db
+        # connect to the SQL db
         self.db = SQL(sql_config)
 
         # save the slurm, xia2 configuration
@@ -153,7 +168,7 @@ class ProjectBase:
                              'SARS_COV_2_Analysis_v2.Refinement',
                              {'data_reduction_id' : data_reduction_id, 
                               'run_id' : run,
-                              'method' : (self.method_name + '-dmpl')})
+                              'method' : (self.method_name + '_dmpl')})
         return get_single(qid, crystal_id, run, 'refinement_id') 
 
 
@@ -327,7 +342,7 @@ class ProjectBase:
                     'isigi':         ss['I/sigma'][0],
                     'rmeas':         ss['Rmeas(I)'][0],
                     'cchalf':        ss['CC half'][0],
-                    #'rfactor':       None, # TODO
+                    'rfactor':       ss['Rmerge(I)'][0],
                     'wilson_b':      ss['Wilson B factor'][0],
                     }
 
@@ -400,13 +415,13 @@ class ProjectBase:
         log.read(log_path)
 
         data_dict = {
-                     'data_reduction_id':    get_reduction_id(cid, run),
+                     'data_reduction_id':    self.get_reduction_id(cid, run),
                      'analysis_time':        filetime(mtz_path),
                      'folder_path':          outdir,
                      'initial_pdb_path':     self.reference_pdb,
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
-                     'method':               self.method_name + '-dmpl',
+                     'method':               self.method_name + '_dmpl',
                      'resolution_cut':       self.get_resolution(metadata, run),
                      'rfree':                fmt(log['refmac5 restr']['free_r']),
                      'rwork':                fmt(log['refmac5 restr']['overall_r']),
@@ -458,12 +473,9 @@ class ProjectBase:
 
 if __name__ == '__main__':
 
-    pb = ProjectBase.load_config('../configs/DIALS.yaml')
-
-    print(pb.fetch_dmpl_successes())
+    pb = ProjectBase.load_config('../configs/test.yaml')
 
     for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
-        pass
         #print(pb.metadata_to_id(md, run))
         #print(pb.raw_data_exists(md, run))
         #print(pb.metadata_to_dataset_path(md, run))
@@ -472,6 +484,6 @@ if __name__ == '__main__':
         #print(pb.get_reduction_id(cid, run))
         #print(pb.get_refinement_id(cid, run))
 
-        #print(pb.xia_data(md, run))
-        #print(pb.dmpl_data(md, run))
+        print(pb.xia_data(md, run))
+        print(pb.dmpl_data(md, run))
 
