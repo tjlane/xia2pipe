@@ -6,6 +6,7 @@ import re
 import yaml
 import json
 import ast
+import time
 import configparser
 import subprocess
 
@@ -13,8 +14,7 @@ from glob import glob
 from datetime import datetime
 from os.path import join as pjoin
 
-sys.path.insert(0, "/gpfs/cfel/cxi/common/public/SARS-CoV-2/stable/connector")
-from MySQL.dev.connector import SQL
+from xia2pipe.connector import SQL, get_single
 
 
 def _count_blobs(log_handle):
@@ -45,23 +45,15 @@ def _get_average_model_b(pdb_path):
     p = '\| all     :\s+\d+\s+\d+\s+(\d+.\d+)\s+(\d+.\d+)\s+(\d+.\d+)'
     g = re.search(p, ret.stdout.decode("utf-8"))
 
+    if not g:
+        raise RuntimeError('could not find b-factor in output of'
+                           'phenix.b_factor_statistics')
     if not len(g.groups()) == 3:
         raise RuntimeError('could not find b-factor in output of'
                            'phenix.b_factor_statistics')
     avg_model_b = float(g.groups()[2])
 
     return avg_model_b
-
-
-def get_single(query, crystal_id, run, field_name):
-    if len(query) == 0:
-        raise IOError('no {} in database for '
-                      'crystal_id={}, run={}'.format(field_name, crystal_id, run))
-    if len(query) > 1:
-        print(query)
-        raise IOError('found multiple {}`s in database for '
-                      'crystal_id={}, run={}'.format(field_name, crystal_id, run))
-    return query[0][field_name]
 
 
 def filetime(path):
@@ -103,7 +95,6 @@ class ProjectBase:
 
         # connect to the SARS-COV-2 SQL db
         self.db = SQL(sql_config)
-        self.db.connect()
 
         # save the slurm, xia2 configuration
         self.slurm_config = slurm_config
@@ -113,10 +104,10 @@ class ProjectBase:
 
 
     def metadata_to_id(self, metadata, run):
-        cid = self.db.fetch(
-            "SELECT crystal_id FROM SARS_COV_2_v2.Diffractions WHERE "
-            "metadata='{}' AND run_id='{}';".format(metadata, run)
-        )
+        cid = self.db.select('crystal_id',
+                             'SARS_COV_2_v2.Diffractions',
+                             {'metadata' : metadata, 'run_id' : run},
+                             )
         if len(cid) == 0:
             raise IOError('no crystal_id in database for '
                           'metadata={}, run={}'.format(metadata, run))
@@ -128,30 +119,37 @@ class ProjectBase:
 
 
     def id_to_metadata(self, crystal_id, run):
-        md = self.db.fetch(
-            "SELECT metadata FROM SARS_COV_2_v2.Diffractions WHERE "
-            "crystal_id='{}' AND run_id='{}';".format(crystal_id, run)
-        )
+        md = self.db.select('metadata',
+                            'SARS_COV_2_v2.Diffractions',
+                            {'crystal_id' : crystal_id, 'run_id' : run})
         return get_single(md, crystal_id, run, 'metadata')
 
 
-    def metadata_to_dataset_path(self, metadata, run):
+    def metadata_to_dataset_path(self, metadata, run, skip_db=False):
         """
         Fetch the latest run directory for a given metadata by inspecting
         what is on disk.
 
         Specifically, this function returns the entire path to e.g. cbf files
-        not a generic dataset directory
+        not a generic dataset directory.
+
+        Repeated database queries are going slowly at the moment, so you
+        can switch that off with skip_db=True.
         """
 
-        crystal_id = self.metadata_to_id(metadata, run)
-
         # >> try to use the database
-        dp_qry = self.db.fetch(
-            "SELECT data_raw_filename_pattern FROM SARS_COV_2_v2.Diffractions WHERE "
-            "crystal_id='{}' AND run_id='{}';".format(crystal_id, run)
-        )
-        data_pattern = get_single(dp_qry, crystal_id, run, 'data_raw_filename_pattern')
+        if not skip_db:
+
+            crystal_id = self.metadata_to_id(metadata, run)
+
+            dp_qry = self.db.select('data_raw_filename_pattern',
+                                    'SARS_COV_2_v2.Diffractions',
+                                    {'crystal_id' : crystal_id, 'run_id' : run})
+            data_pattern = get_single(dp_qry, crystal_id, run, 'data_raw_filename_pattern')
+
+        else:
+            data_pattern = None
+
 
         if data_pattern: # is not None, aka database success
             dataset_path = os.path.dirname(data_pattern)
@@ -304,6 +302,20 @@ class ProjectBase:
         return data_dict
 
 
+    def fetch_xia_successes(self):
+
+        successes = self.db.select('metadata, run_id',
+                                   'SARS_COV_2_v2.Diffractions',
+                                   {'diffraction' : 'Success'})
+
+        to_run = []
+        for md in [ (s['metadata'], s['run_id']) for s in successes ]:
+            if self.xia_result(*md) == 'finished':
+                to_run.append(md)
+
+        return to_run
+
+
     def get_resolution(self, metadata, run):
             # this function is here to allow later modification of,
             # for example, the resolution cut between the reduction
@@ -321,10 +333,9 @@ class ProjectBase:
         if which not in ['cc', 'isigma']:
             raise ValueError("which must be `cc` or `isigma`")
 
-        res = self.db.fetch(
-            "SELECT resolution_{}, method FROM SARS_COV_2_Analysis_v2.Data_Reduction WHERE "
-            "crystal_id='{}' AND run_id={};".format(which, crystal_id, run)
-        )
+        res = self.db.select('resolution_{}'.format(which), 
+                             'SARS_COV_2_Analysis_v2.Data_Reduction',
+                             {'crystal_id' : crystal_id, 'run_id' : run})
 
         if len(res) == 0:
             raise RuntimeError('{} resolution result not in DB'.format(metadata))
@@ -396,6 +407,11 @@ class ProjectBase:
                     }
         
         return data_dict
+
+
+    def fetch_dmpl_successes(self):
+        raise NotImplementedError() # TODO
+        return
 
 
     @classmethod

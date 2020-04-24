@@ -13,6 +13,17 @@ from mysql import connector
 from numpy import ndarray
 
 
+def get_single(query, crystal_id, run, field_name):
+    if len(query) == 0:
+        raise IOError('no {} in database for '
+                      'crystal_id={}, run={}'.format(field_name, crystal_id, run))
+    if len(query) > 1:
+        print(query)
+        raise IOError('found multiple {}`s in database for '
+                      'crystal_id={}, run={}'.format(field_name, crystal_id, run))
+    return query[0][field_name]
+
+
 class SQL(object):
 
     def __init__(self, config):

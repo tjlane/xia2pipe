@@ -12,20 +12,6 @@ from xia2pipe.projbase import ProjectBase
 
 class DimplingDaemon(ProjectBase):
 
-    def fetch_xia_successes(self):
-
-        successes = self.db.fetch(
-            "SELECT metadata, run_id FROM SARS_COV_2_v2.Diffractions "
-            "WHERE diffraction='Success';"
-        )
-
-        to_run = []
-        for md in [ (s['metadata'], s['run_id']) for s in successes ]:
-            if self.xia_result(*md) == 'finished':
-                to_run.append(md)
-
-        return to_run
-
 
     def fetch_running_jobs(self):
         """
