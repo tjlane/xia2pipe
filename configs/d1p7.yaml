@@ -15,8 +15,8 @@ xia2:
 sql:
   host:                 'cfeld-vm05.desy.de'
   database:             'SARS_COV_2_Analysis_v2'
-  user:                 'reader'
-  password:             'sarsCovRead99!'
+  user:                 'readWriter'
+  password:             'sarsCovRW99!'
   connection_timeout:   60
   auth_plugin:          'mysql_native_password'
   autocommit:           True
