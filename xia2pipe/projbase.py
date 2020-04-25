@@ -137,7 +137,7 @@ class ProjectBase:
             raise IOError('no crystal_id in database for '
                           'metadata={}, run={}'.format(metadata, run))
         if len( set([ x['crystal_id'] for x in cid ]) ) > 1: # check unique
-            print(cid)
+            #print('multiple cid for metadata:', cid)
             raise IOError('found multiple irreconcilable crystal_id`s in db for '
                           'metadata={}, run={}'.format(metadata, run))
         return cid[0]['crystal_id']
@@ -300,8 +300,6 @@ class ProjectBase:
             json_path = pjoin(outdir, 
                               '{}'.format(metadata), 
                               'scale/xia2.json')
-            #print('cannot find: {}, trying: {}'
-            #      ''.format(orig_json_path, json_path))
 
             if not os.path.exists(json_path):
                 raise IOError('cannot find DIALS json for '
@@ -382,11 +380,11 @@ class ProjectBase:
         mtzpth = "{}_{:03d}_postphenix_out.mtz".format(metadata, run)
         full_mtz_path = pjoin(outdir, mtzpth)
 
-        errpth = pjoin(outdir, 'DIALS-dmpl_{}_{:03d}-{}.err'.format(metadata, run, run))
+        errpth = pjoin(outdir, '{}-dmpl_*.err'.format(self.name))
 
         if os.path.exists(full_mtz_path):
             result = 'finished'
-        elif os.path.exists(errpth):
+        elif len(glob(errpth)) > 0:
             result = 'procfail'
         else:
             result = 'notdone'

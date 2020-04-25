@@ -157,7 +157,7 @@ class SQL(object):
             return
 
 
-    def select(self, key, table, condition, verbose=False):
+    def select(self, key, table, condition=None, verbose=False):
         """ return item in a given table satisfying a certain condition
         
         example:
@@ -186,20 +186,23 @@ class SQL(object):
             btable += "{}, ".format(ki)
         table = btable[:-2]
 
-        # condition
-        bcondition = ""
-
-        for ki, vi in condition.items():
-            if type(vi) == str and vi != "NULL":
-                bcondition += '{}="{}" AND '.format(ki, vi)
-
-            else:
-                bcondition += "{}={} AND ".format(ki, vi)
-
-        condition = bcondition[:-5]
-
         # execute the query
-        query = "SELECT {} FROM {} WHERE {}".format(key, table, condition)
+        query = "SELECT {} FROM {}".format(key, table)
+
+        # condition
+        if condition:
+            bcondition = ""
+
+            for ki, vi in condition.items():
+                if type(vi) == str and vi != "NULL":
+                    bcondition += '{}="{}" AND '.format(ki, vi)
+
+                else:
+                    bcondition += "{}={} AND ".format(ki, vi)
+
+            condition = bcondition[:-5]
+
+            query = query + " WHERE {}".format(condition)
 
         if verbose:
             print("{}: MySQL: {}".format(datetime.now().time(), query))
