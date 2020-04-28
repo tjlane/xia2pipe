@@ -81,7 +81,7 @@ class DBDaemon(ProjectBase):
 
     def update_xia(self, to_file=None):
         self._update('Data_Reduction',
-                     self.fetch_xia_successes(),
+                     self.fetch_reduction_successes(),
                      self.xia_data,
                      to_file=to_file)
         return

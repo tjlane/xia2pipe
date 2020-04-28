@@ -91,6 +91,7 @@ class ProjectBase:
                  results_dir,
                  rawdata_dirs=[], # can use database instead
                  reference_pdb=None,
+                 pipeline_name=None,
                  sql_config=None,
                  slurm_config=None,
                  xia2_config=None):
@@ -100,6 +101,7 @@ class ProjectBase:
         self.results_dir   = results_dir
         self.rawdata_dirs  = rawdata_dirs
         self.reference_pdb = reference_pdb
+        self.pipeline_name = pipeline_name # for interfacing with pipelines I didn't make...
 
         if pipeline.lower() not in ['dials', '2d', '3d', '3dii']:
             raise ValueError('pipeline: {} not valid'.format(pipeline))
@@ -121,7 +123,10 @@ class ProjectBase:
 
     @property
     def method_name(self):
-        return '{}-{}'.format(self.name, self.pipeline)
+        if self.pipeline_name is not None:
+            return self.pipeline_name
+        else:
+            return '{}-{}'.format(self.name, self.pipeline)
 
 
     @property
@@ -359,18 +364,22 @@ class ProjectBase:
         return data_dict
 
 
-    def fetch_xia_successes(self):
+    def fetch_reduction_successes(self):
 
-        successes = self.db.select('metadata, run_id',
-                                   'SARS_COV_2_v2.Diffractions',
-                                   {'diffraction' : 'Success'})
+        successes = self.db.select('crystal_id, run_id',
+                                   '{}.Data_Reduction'.format(self._analysis_db),
+                                   {'method' : self.method_name})
 
-        to_run = []
-        for md in [ (s['metadata'], s['run_id']) for s in successes ]:
-            if self.xia_result(*md) == 'finished':
-                to_run.append(md)
+        ret = []
+        for s in successes:
+            ret.append( 
+                        (
+                          self.id_to_metadata(s['crystal_id'], s['run_id']),
+                          s['run_id']
+                        )
+                      )
 
-        return to_run
+        return ret
 
 
     def get_resolution(self, metadata, run):

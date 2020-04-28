@@ -33,6 +33,43 @@ class DimplingDaemon(ProjectBase):
         return running
 
 
+    def fetch_input_mtz(self, metadata, run):
+        """
+        Lookup the mtz output from the 'Reductions' table
+        """
+
+        cid = self.metadata_to_id(metadata, run)
+
+        qry = self.db.select(
+                             'mtz_path',
+                             '{}.Data_Reduction'.format(self._analysis_db),
+                              {
+                                'crystal_id': cid, 
+                                'run_id': run, 
+                                'method': self.method_name,
+                              },
+                            )
+
+        if len(qry) == 0:
+            if self.pipeline == 'dials':
+                # this should work as a default
+                i_mtz = "./DataFiles/SARSCOV2_{}_free.mtz".format(metadata)
+            else:
+                print('using method:', self.method_name)
+                raise RuntimeError('cannot find `mtz_path` in db for:\n'
+                                   '(crystal_id, metadata, run) '
+                                   '{}, {}, {}'.format(cid, metadata, run))
+
+        elif len(qry) == 1:
+            i_mtz = qry[0]['mtz_path']
+
+        else:
+            raise RuntimeError('multiple entries in SQL found, '
+                               'should be only one', qry)
+        
+        return i_mtz
+
+
     def submit_unfinished(self, limit=None, verbose=True):
 
         # TODO
@@ -45,7 +82,7 @@ class DimplingDaemon(ProjectBase):
         print('>>', current_time)
 
         # get sucessfully completed xia2 runs
-        to_run = set(self.fetch_xia_successes())
+        to_run = set(self.fetch_reduction_successes())
         if verbose:
             print('xia2 completed:                  {}'.format(len(to_run)))
 
@@ -88,6 +125,8 @@ class DimplingDaemon(ProjectBase):
                                  'almost certainly a bug in the code.')
 
         outdir = self.metadata_to_outdir(metadata, run)
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
 
         try:
             resoln = self.get_resolution(metadata, run)
@@ -124,7 +163,7 @@ uni_free=/home/tjlane/opt/xia2pipe/scripts/uni_free.csh
 
 
 # >> inferred input
-input_mtz="./DataFiles/SARSCOV2_${{metadata}}_free.mtz"
+input_mtz={input_mtz}
 
 
 # >> uni_free : same origin, reset rfree flags
@@ -189,6 +228,7 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
                     rsrvtn        = self.slurm_config.get('reservation', ''),
                     outdir        = outdir,
                     reference_pdb = self.reference_pdb,
+                    input_mtz     = self.fetch_input_mtz(metadata, run),
                     resolution    = resoln,
                   )
 
@@ -230,6 +270,7 @@ if __name__ == '__main__':
     run = 1
 
     dd = DimplingDaemon.load_config('../configs/test.yaml')
-    dd.submit_unfinished(limit=0)
+    dd.fetch_input_mtz(metadata, run)
+    #dd.submit_unfinished(limit=0)
 
 
