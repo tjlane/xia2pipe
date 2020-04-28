@@ -54,6 +54,10 @@ class DBDaemon(ProjectBase):
 
                 data = data_fetcher(md, run)
 
+                if float('nan') in data.values():
+                    print('nan in values!', data)
+                    continue
+
                 if to_file:
                     columns = ', '.join(list(data.keys()))
                     values  = ', '.join(["'%s'"%v if v else "NULL" for v in data.values()])
@@ -118,7 +122,7 @@ def script():
 
     elif args.direct:
        print('--> direct injection to SQL requested')
-       conf = input('are you sure? [y/n] ')
+       conf = input('    are you sure? [y/n] ')
        if conf in ['y', 'Y', 'yes', 'Yes', 'YES']:
            dbd.update_xia()
            dbd.update_dimpling()

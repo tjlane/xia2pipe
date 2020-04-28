@@ -13,6 +13,7 @@ import subprocess
 from glob import glob
 from datetime import datetime
 from os.path import join as pjoin
+from math import isnan
 
 from xia2pipe.connector import SQL, get_single
 
@@ -137,7 +138,7 @@ class ProjectBase:
             raise IOError('no crystal_id in database for '
                           'metadata={}, run={}'.format(metadata, run))
         if len( set([ x['crystal_id'] for x in cid ]) ) > 1: # check unique
-            #print('multiple cid for metadata:', cid)
+            #print('multiple cid for metadata/run: {}/{}'. format(metadata, run), cid)
             raise IOError('found multiple irreconcilable crystal_id`s in db for '
                           'metadata={}, run={}'.format(metadata, run))
         return cid[0]['crystal_id']
@@ -213,6 +214,7 @@ class ProjectBase:
             for rawdata_dir in self.rawdata_dirs:
                 dataset_path = pjoin(rawdata_dir,
                                      "{}/{}_{:03d}/".format(metadata, metadata, run))
+                #print('xxx', os.path.exists(dataset_path), dataset_path)
                 if os.path.exists(dataset_path):
                     possible_dirs.append(dataset_path)
 
@@ -230,7 +232,7 @@ class ProjectBase:
         return dataset_path, ext
 
 
-    def raw_data_exists(self, metadata, run, min_files=800):
+    def raw_data_exists(self, metadata, run, min_files=999):
 
         try:
             dataset_path, ext = self.metadata_to_dataset_path(metadata, run)
@@ -347,6 +349,12 @@ class ProjectBase:
                     'rfactor':       ss['Rmerge(I)'][0],
                     'wilson_b':      ss['Wilson B factor'][0],
                     }
+
+        # this is a regression fix -- apparently DIALS can report
+        # 'nan' for the wilson_b (possible bug in DIALS?)
+        if isnan( data_dict['wilson_b'] ):
+            print(' ! nan in wilson_b for:', metadata, run)
+            data_dict.pop('wilson_b')
 
         return data_dict
 
