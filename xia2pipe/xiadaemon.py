@@ -86,18 +86,6 @@ class XiaDaemon(ProjectBase):
         return [ (s['metadata'], s['run_id']) for s in successes ]
 
 
-    def missing_data(self):
-        print('>>> missing -----------')
-        n = 0
-        to_run = set(self.fetch_diffraction_successes())
-        for md in list(to_run):
-            if not self.raw_data_exists(*md):
-                cid = self.metadata_to_id(*md)
-                print(cid, md)
-        print('<<< {} total [done]'.format(n))
-        return
-
-
     def fetch_running_jobs(self):
         """
         Return a list of metadata str that are running on SLURM
