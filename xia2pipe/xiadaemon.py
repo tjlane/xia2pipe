@@ -93,7 +93,7 @@ class XiaDaemon(ProjectBase):
 
         running = []
 
-        r = subprocess.run('sacct --format="JobID,JobName%30" --state="RUNNING,PENDING"',
+        r = subprocess.run('sacct --format="JobID,JobName%50" --state="RUNNING,PENDING"',
                            capture_output=True, shell=True, check=True)
         
         lines = r.stdout.decode("utf-8").split('\n')

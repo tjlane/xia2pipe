@@ -383,11 +383,39 @@ class ProjectBase:
 
 
     def get_resolution(self, metadata, run):
-            # this function is here to allow later modification of,
-            # for example, the resolution cut between the reduction
-            # and refinement stages of the pipeline
-            # TODO : think about the code structure here
-            return self.xia_data(metadata, run)['resolution_cc']
+
+        # this function is here to allow later modification of,
+        # for example, the resolution cut between the reduction
+        # and refinement stages of the pipeline
+        # TODO : think about the code structure here
+
+        # (1) first try querying the DB
+        cid = self.metadata_to_id(metadata, run)
+
+        qry = self.db.select(
+                             'resolution_cc',
+                             '{}.Data_Reduction'.format(self._analysis_db),
+                              {
+                                'crystal_id': cid,
+                                'run_id': run,
+                                'method': self.method_name,
+                              },
+                            )
+
+        if len(qry) == 1:
+            res = qry[0]['resolution_cc']
+
+        # (2) if that does not work, try for the xia result on disk
+        else:
+            try:
+                res = self.xia_data(metadata, run)['resolution_cc']
+            except OSError as e:
+                print(e)
+                print('SQL query result:', qry)
+                raise RuntimeError('cannot find resolution for {}, {} '
+                                   'in DB or on disk'.format(metadata, run))
+
+        return res
 
 
     def dmpl_result(self, metadata, run):
