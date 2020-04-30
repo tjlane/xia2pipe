@@ -178,7 +178,7 @@ class ProjectBase:
         qid = self.db.select('refinement_id',
                              '{}.Refinement'.format(self._analysis_db),
                              {'data_reduction_id' : data_reduction_id, 
-                              'method' : (self.method_name + '-dmpl')})
+                              'method' : 'dmpl'})
         return get_single(qid, crystal_id, run, 'refinement_id') 
 
 
@@ -364,20 +364,32 @@ class ProjectBase:
         return data_dict
 
 
-    def fetch_reduction_successes(self):
+    def fetch_reduction_successes(self, in_db=False):
 
-        successes = self.db.select('crystal_id, run_id',
-                                   '{}.Data_Reduction'.format(self._analysis_db),
-                                   {'method' : self.method_name})
+        if not in_db: # on disk
+            successes = self.db.select('metadata, run_id',
+                                       'SARS_COV_2_v2.Diffractions',
+                                       {'diffraction' : 'Success'})
 
-        ret = []
-        for s in successes:
-            ret.append( 
-                        (
-                          self.id_to_metadata(s['crystal_id'], s['run_id']),
-                          s['run_id']
-                        )
-                      )
+            ret = []
+            for md in [ (s['metadata'], s['run_id']) for s in successes ]:
+                if self.xia_result(*md) == 'finished':
+                    ret.append(md)
+
+
+        else:
+            successes = self.db.select('crystal_id, run_id',
+                                       '{}.Data_Reduction'.format(self._analysis_db),
+                                       {'method' : self.method_name})
+
+            ret = []
+            for s in successes:
+                ret.append( 
+                            (
+                              self.id_to_metadata(s['crystal_id'], s['run_id']),
+                              s['run_id']
+                            )
+                          )
 
         return ret
 
@@ -393,7 +405,7 @@ class ProjectBase:
         cid = self.metadata_to_id(metadata, run)
 
         qry = self.db.select(
-                             'resolution_cc',
+                             'resolution_cc, resolution_isigma',
                              '{}.Data_Reduction'.format(self._analysis_db),
                               {
                                 'crystal_id': cid,
@@ -405,6 +417,11 @@ class ProjectBase:
         if len(qry) == 1:
             res = qry[0]['resolution_cc']
 
+            # sometimes XDS results only have isigma resolutions reported
+            if (res is None) and (qry[0]['resolution_isigma'] is not None):
+                res = qry[0]['resolution_isigma']
+                
+
         # (2) if that does not work, try for the xia result on disk
         else:
             try:
@@ -414,6 +431,10 @@ class ProjectBase:
                 print('SQL query result:', qry)
                 raise RuntimeError('cannot find resolution for {}, {} '
                                    'in DB or on disk'.format(metadata, run))
+
+        if res is None:
+            print(' ! resolution for {}, {} is `None`'.format(metadata, run))
+            res = 'NULL'
 
         return res
 
@@ -438,6 +459,55 @@ class ProjectBase:
 
 
     def dmpl_data(self, metadata, run):
+        # a de-formatting function for the dimple log file
+        # -1 here grabs the last round of REFMAC refinement
+        fmt = lambda f : float(f.split(',')[-1].strip(', []'))
+
+        cid = self.metadata_to_id(metadata, run)
+        outdir = self.metadata_to_outdir(metadata, run)
+
+        mtz_name = "{}_{:03d}_002.mtz".format(metadata, run)
+        mtz_path = pjoin(outdir, mtz_name)
+
+        pdb_name = "{}_{:03d}_002.pdb".format(metadata, run)
+        pdb_path = pjoin(outdir, pdb_name)
+
+        log_path = pjoin(outdir, "{}_{:03d}_002.log".format(metadata, run))
+        if not os.path.exists(log_path):
+            raise IOError('{}_:03d{}/dimple.log does not exist'
+                          ''.format(metadata, run))
+
+
+        # from log: r-work r-free bonds angles b_min b_max b_ave
+        p = 'end\:' + '\s+(\d+\.\d+)'*7
+        with open(log_path, 'r') as f:
+            g = re.search(p, f.read())
+
+        if g is None:
+            raise IOError('Could not parse: {}'.format(log_path))
+        else:
+            log_results = [ float(e) for e in g.groups() ]
+
+        data_dict = {
+                     'data_reduction_id':    self.get_reduction_id(cid, run),
+                     'analysis_time':        filetime(mtz_path),
+                     'folder_path':          outdir,
+                     'initial_pdb_path':     self.reference_pdb,
+                     'final_pdb_path':       pdb_path,
+                     'refinement_mtz_path':  mtz_path,
+                     'method':               'dmpl',
+                     'resolution_cut':       self.get_resolution(metadata, run),
+                     'rfree':                log_results[1],
+                     'rwork':                log_results[0],
+                     'rms_bond_length':      log_results[2],
+                     'rms_bond_angle':       log_results[3],
+                     'average_model_b':      log_results[6],
+                    }
+
+        return data_dict
+
+
+    def dmpl_refmac_data(self, metadata, run):
 
         # a de-formatting function for the dimple log file
         # -1 here grabs the last round of REFMAC refinement
@@ -468,7 +538,7 @@ class ProjectBase:
                      'initial_pdb_path':     self.reference_pdb,
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
-                     'method':               self.method_name + '-dmpl',
+                     'method':               'dmpl',
                      'resolution_cut':       self.get_resolution(metadata, run),
                      'rfree':                fmt(log['refmac5 restr']['free_r']),
                      'rwork':                fmt(log['refmac5 restr']['overall_r']),
@@ -520,9 +590,9 @@ class ProjectBase:
 
 if __name__ == '__main__':
 
-    pb = ProjectBase.load_config('../configs/test.yaml')
+    pb = ProjectBase.load_config('../configs/xds_re.yaml')
 
-    for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
+    #for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
         #print(pb.metadata_to_id(md, run))
         #print(pb.raw_data_exists(md, run))
         #print(pb.metadata_to_dataset_path(md, run))
@@ -531,6 +601,11 @@ if __name__ == '__main__':
         #print(pb.get_reduction_id(cid, run))
         #print(pb.get_refinement_id(cid, run))
 
-        print(pb.xia_data(md, run))
-        print(pb.dmpl_data(md, run))
+    #    print(pb.xia_data(md, run))
+    #    print(pb.dmpl_data(md, run))
+
+    #print(pb.method_name)
+    #print(pb.fetch_reduction_successes())
+
+    print(pb.get_resolution('MPro_4332_1', 1))
 

@@ -82,7 +82,7 @@ class DimplingDaemon(ProjectBase):
         print('>>', current_time)
 
         # get sucessfully completed xia2 runs
-        to_run = set(self.fetch_reduction_successes())
+        to_run = set(self.fetch_reduction_successes(in_db=True))
         if verbose:
             print('xia2 completed:                  {}'.format(len(to_run)))
 
@@ -207,7 +207,8 @@ phenix.refine ${{cut_mtz}} ${{metadata}}_dim1_out.updated.pdb           \
   main.max_number_of_iterations=40                                      \
   adp.set_b_iso=20                                                      \
   ordered_solvent=True                                                  \
-  simulated_annealing.start_temperature=2500
+  simulated_annealing.start_temperature=2500                            \
+  refinement.input.xray_data.r_free_flags.label=FreeR_flag
 
 
 # >> dimple #2
