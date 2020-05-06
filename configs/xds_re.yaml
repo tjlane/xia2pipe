@@ -22,7 +22,7 @@ sql:
   autocommit:           True
 
 slurm:
-#  partition:            'cfel'
-  partition:            'all'
-  reservation:          'covid'
+  partition:            'cfel'
+#  partition:            'all'
+#  reservation:          'covid'
 
