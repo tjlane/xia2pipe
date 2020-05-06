@@ -180,7 +180,7 @@ eof
 
 # >> forcedown uncut 
 fd=/gpfs/cfel/cxi/common/public/SARS-CoV-2/devel/vagabond/vagabond/build/current/force_down
-fd ${{cut_mtz}}
+${{fd}} ${{cut_mtz}}
 fd_mtz=fd-${{cut_mtz}}
 
 
@@ -193,6 +193,7 @@ dimple ${{ref_pdb}} ${{fd_mtz}}        \
   --hklout ${{metadata}}_dim1_out.mtz  \
   --xyzout ${{metadata}}_dim1_out.pdb  \
   {outdir}
+
 
 # >> add riding H
 phenix.ready_set ${{metadata}}_dim1_out.pdb
@@ -214,6 +215,7 @@ phenix.refine ${{fd_mtz}} ${{metadata}}_dim1_out.updated.pdb            \
   adp.set_b_iso=20                                                      \
   ordered_solvent={ordered_solvent}                                     \
   simulated_annealing.start_temperature=2500                            \
+  refinement.input.xray_data.r_free_flags.file_name=${{cut_mtz}}        \
   refinement.input.xray_data.r_free_flags.label=FreeR_flag
 
 
@@ -274,10 +276,11 @@ def script():
 
 if __name__ == '__main__':
 
-    metadata  = 'l9p21_04'
+    metadata  = 'MPro_2764_1'
     run = 1
 
     dd = DimplingDaemon.load_config('../configs/tst-d1p7.yaml')
+    dd.submit_run(metadata, run)
     #dd.submit_unfinished(limit=0)
 
 
