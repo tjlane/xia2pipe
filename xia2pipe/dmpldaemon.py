@@ -178,8 +178,14 @@ resolution ${{resolution}}
 eof
 
 
+# >> forcedown uncut 
+fd=/gpfs/cfel/cxi/common/public/SARS-CoV-2/devel/vagabond/vagabond/build/current/force_down
+fd ${{cut_mtz}}
+fd_mtz=fd-${{cut_mtz}}
+
+
 # >> dimple #1
-dimple ${{ref_pdb}} ${{cut_mtz}}       \
+dimple ${{ref_pdb}} ${{fd_mtz}}        \
   --free-r-flags ${{cut_mtz}}          \
   -f png                               \
   --jelly 0                            \
@@ -193,7 +199,7 @@ phenix.ready_set ${{metadata}}_dim1_out.pdb
 
 
 # >> phenix refinement
-phenix.refine ${{cut_mtz}} ${{metadata}}_dim1_out.updated.pdb           \
+phenix.refine ${{fd_mtz}} ${{metadata}}_dim1_out.updated.pdb            \
   prefix=${{metadata}}                                                  \
   serial=2                                                              \
   strategy=individual_sites+individual_adp+individual_sites_real_space  \
@@ -206,13 +212,13 @@ phenix.refine ${{cut_mtz}} ${{metadata}}_dim1_out.updated.pdb           \
   nproc=24                                                              \
   main.max_number_of_iterations=40                                      \
   adp.set_b_iso=20                                                      \
-  ordered_solvent=True                                                  \
+  ordered_solvent={ordered_solvent}                                     \
   simulated_annealing.start_temperature=2500                            \
   refinement.input.xray_data.r_free_flags.label=FreeR_flag
 
 
 # >> dimple #2
-dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
+dimple ${{metadata}}_002.pdb ${{fd_mtz}}  \
   --free-r-flags ${{cut_mtz}}             \
   -f png                                  \
   --jelly 0                               \
@@ -222,15 +228,16 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
   {outdir}
 
         """.format(
-                    name          = self.name,
-                    metadata      = metadata,
-                    run           = run,
-                    partition     = self.slurm_config.get('partition', 'all'),
-                    rsrvtn        = self.slurm_config.get('reservation', ''),
-                    outdir        = outdir,
-                    reference_pdb = self.reference_pdb,
-                    input_mtz     = self.fetch_input_mtz(metadata, run),
-                    resolution    = resoln,
+                    name            = self.name,
+                    metadata        = metadata,
+                    run             = run,
+                    partition       = self.slurm_config.get('partition', 'all'),
+                    rsrvtn          = self.slurm_config.get('reservation', ''),
+                    outdir          = outdir,
+                    reference_pdb   = self.reference_pdb,
+                    input_mtz       = self.fetch_input_mtz(metadata, run),
+                    resolution      = resoln,
+                    ordered_solvent = self.refinement_config.get('ordered_solvent', True)
                   )
 
         # create a slurm sub script
@@ -270,8 +277,7 @@ if __name__ == '__main__':
     metadata  = 'l9p21_04'
     run = 1
 
-    dd = DimplingDaemon.load_config('../configs/test.yaml')
-    dd.fetch_input_mtz(metadata, run)
+    dd = DimplingDaemon.load_config('../configs/tst-d1p7.yaml')
     #dd.submit_unfinished(limit=0)
 
 
