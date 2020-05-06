@@ -93,8 +93,9 @@ class ProjectBase:
                  reference_pdb=None,
                  pipeline_name=None,
                  sql_config=None,
-                 slurm_config=None,
-                 xia2_config=None):
+                 slurm_config={},
+                 xia2_config={},
+                 refinement_config={}):
 
         self.name          = name
         self.pipeline      = pipeline
@@ -114,9 +115,10 @@ class ProjectBase:
         # connect to the SQL db
         self.db = SQL(sql_config)
 
-        # save the slurm, xia2 configuration
-        self.slurm_config = slurm_config
-        self.xia2_config  = xia2_config
+        # save the slurm, xia2, refinement configuration
+        self.slurm_config      = slurm_config
+        self.xia2_config       = xia2_config
+        self.refinement_config = refinement_config
 
         return
 
@@ -582,9 +584,10 @@ class ProjectBase:
         return cls(name,
                    pipeline,
                    results_dir,
-                   sql_config=config.get('sql', None),
-                   slurm_config=config.get('slurm', None),
-                   xia2_config=config.get('xia2', None),
+                   sql_config=config.get('sql', {}),
+                   slurm_config=config.get('slurm', {}),
+                   xia2_config=config.get('xia2', {}),
+                   refinement_config=config.get('refinement', {}),
                    **proj_config)
 
 

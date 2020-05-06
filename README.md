@@ -17,15 +17,8 @@ Consists of 3 main parts:
 
 -------------------------------------------------------------------------------
 
-## known issues
-- doing lots of small SQL queries... 
-
 ## To Do : Short-Term
-- flexible partition for slurm jobs
-- pass optional params to dials
-- scripts to quickly submit jobs
-- SQL ingestion
-- all daemons in one loop
+- config file sanity
 
 ## To Do : Long-Term
 - re-structure code so crystal_id is first class, not metadata (!)
