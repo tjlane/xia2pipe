@@ -141,10 +141,10 @@ class DimplingDaemon(ProjectBase):
 #SBATCH --partition={partition}
 #SBATCH --reservation={rsrvtn}
 #SBATCH --nodes=1
-#SBATCH --chdir     {outdir}
+#SBATCH --time=4:00:00
 #SBATCH --job-name  {name}-dmpl_{metadata}-{run}
-#SBATCH --output    {name}-dmpl_{metadata}-{run}.out
-#SBATCH --error     {name}-dmpl_{metadata}-{run}.err
+#SBATCH --output    {outdir}/{name}-dmpl_{metadata}-{run}.out
+#SBATCH --error     {outdir}/{name}-dmpl_{metadata}-{run}.err
 
 export LD_PRELOAD=""
 source /etc/profile.d/modules.sh
@@ -152,84 +152,14 @@ source /etc/profile.d/modules.sh
 module load ccp4/7.0
 module load phenix/1.13
 
+/home/tjlane/opt/xia2pipe/scripts/dmpl.sh \
+  --dir={outdir}                  \
+  --metadata={metadata}_{run:03d} \
+  --resolution={resolution}       \
+  --refpdb={reference_pdb}        \
+  --mtzin={input_mtz}             
 
-metadata={metadata}_{run:03d}
-resolution={resolution}
-
-ref_pdb={reference_pdb}
-
-# TODO fix this script...
-uni_free=/home/tjlane/opt/xia2pipe/scripts/uni_free.csh
-
-
-# >> inferred input
-input_mtz={input_mtz}
-
-
-# >> uni_free : same origin, reset rfree flags
-csh ${{uni_free}} ${{input_mtz}} ${{metadata}}_rfree.mtz
-
-
-# >> cut resolution of MTZ
-cut_mtz=${{metadata}}_rfree_rescut.mtz # WORK ON NAME
-mtzutils hklin ${{metadata}}_rfree.mtz \
-hklout ${{cut_mtz}} <<eof
-resolution ${{resolution}}
-eof
-
-
-# >> forcedown uncut 
-fd=/gpfs/cfel/cxi/common/public/SARS-CoV-2/devel/vagabond/vagabond/build/current/force_down
-${{fd}} ${{cut_mtz}}
-fd_mtz=fd-${{cut_mtz}}
-
-
-# >> dimple #1
-dimple ${{ref_pdb}} ${{fd_mtz}}        \
-  --free-r-flags ${{cut_mtz}}          \
-  -f png                               \
-  --jelly 0                            \
-  --restr-cycles 15                    \
-  --hklout ${{metadata}}_dim1_out.mtz  \
-  --xyzout ${{metadata}}_dim1_out.pdb  \
-  {outdir}
-
-
-# >> add riding H
-phenix.ready_set ${{metadata}}_dim1_out.pdb
-
-
-# >> phenix refinement
-phenix.refine ${{fd_mtz}} ${{metadata}}_dim1_out.updated.pdb            \
-  prefix=${{metadata}}                                                  \
-  serial=2                                                              \
-  strategy=individual_sites+individual_adp+individual_sites_real_space  \
-  simulated_annealing=True                                              \
-  optimize_mask=True                                                    \
-  optimize_xyz_weight=True                                              \
-  optimize_adp_weight=True                                              \
-  simulated_annealing.mode=second_and_before_last                       \
-  main.number_of_macro_cycles=7                                         \
-  nproc=24                                                              \
-  main.max_number_of_iterations=40                                      \
-  adp.set_b_iso=20                                                      \
-  ordered_solvent={ordered_solvent}                                     \
-  simulated_annealing.start_temperature=2500                            \
-  refinement.input.xray_data.r_free_flags.file_name=${{cut_mtz}}        \
-  refinement.input.xray_data.r_free_flags.label=FreeR_flag
-
-
-# >> dimple #2
-dimple ${{metadata}}_002.pdb ${{fd_mtz}}  \
-  --free-r-flags ${{cut_mtz}}             \
-  -f png                                  \
-  --jelly 0                               \
-  --restr-cycles 15                       \
-  --hklout ${{metadata}}_postphenix_out.mtz \
-  --xyzout ${{metadata}}_postphenix_out.pdb \
-  {outdir}
-
-        """.format(
+""".format(
                     name            = self.name,
                     metadata        = metadata,
                     run             = run,
