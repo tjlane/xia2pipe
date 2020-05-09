@@ -128,12 +128,16 @@ class DimplingDaemon(ProjectBase):
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
-        try:
-            resoln = self.get_resolution(metadata, run)
-        except RuntimeError as e:
-            print('cannot get resolution for '
-                  '{}, {} :'.format(metadata, run), e)
-            return
+        if self.refinement_config.get('rebuild', False):
+            rebuild_str = '--rebuild'
+        else:
+            rebuild_str = ''
+
+        if self.refinement_config.get('ordered_solvent', True):
+            ordered_sol_str = ''
+        else:
+            ordered_sol_str = '--no-ordered-sol'
+
 
         # then write and sub the slurm script
         batch_script="""#!/bin/bash
@@ -150,7 +154,8 @@ export LD_PRELOAD=""
 source /etc/profile.d/modules.sh
 
 module load ccp4/7.0
-module load phenix/1.13
+module load phenix/1.18
+#source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
 
 /home/tjlane/opt/xia2pipe/scripts/dmpl.sh \
   --dir={outdir}                  \
@@ -158,20 +163,23 @@ module load phenix/1.13
   --resolution={resolution}       \
   --refpdb={reference_pdb}        \
   --mtzin={input_mtz}             \
-  --freemtz={free_mtz}
+  --freemtz={free_mtz}            \
+  {ordered_solvent}
+  {rebuild}
 
 """.format(
                     name            = self.name,
-                    metadata        = metadata,
-                    run             = run,
                     partition       = self.slurm_config.get('partition', 'all'),
                     rsrvtn          = self.slurm_config.get('reservation', ''),
+                    metadata        = metadata,
                     outdir          = outdir,
+                    run             = run,
+                    resolution      = self.get_resolution(metadata, run),
+                    input_mtz       = self.fetch_input_mtz(metadata, run),
                     reference_pdb   = self.reference_pdb,
                     free_mtz        = self.refinement_config.get('free_flag_mtz', ''),
-                    input_mtz       = self.fetch_input_mtz(metadata, run),
-                    resolution      = resoln,
-                    ordered_solvent = self.refinement_config.get('ordered_solvent', True)
+                    ordered_solvent = ordered_sol_str,
+                    rebuild         = rebuild_str,
                   )
 
         # create a slurm sub script

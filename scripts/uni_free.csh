@@ -7,7 +7,7 @@ set freefile = $3
 echo "$0 $1 $2 $3"
 
 # pointless to place all datasets to common origin
-pointless hklref $freefile hklin ${mtzin} hklout ./$$_0.mtz #/tmp/$$_0.mtz
+pointless hklref $freefile hklin ${mtzin} hklout ./$$_0.mtz
 
 # uniqueify script
 mtzinfo $$_0.mtz > $$.mtzinfo
@@ -43,4 +43,9 @@ SYMM C121
 +
 
 if ( -e XYZOUT ) /bin/rm XYZOUT
+if ( -e $$_0.mtz ) /bin/rm $$_0.mtz
+if ( -e $$_1.mtz ) /bin/rm $$_1.mtz
+if ( -e $$_2.mtz ) /bin/rm $$_2.mtz
+if ( -e $$_3.mtz ) /bin/rm $$_3.mtz
+if ( -e $$.mtzinfo ) /bin/rm $$.mtzinfo
 
