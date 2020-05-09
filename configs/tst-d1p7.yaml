@@ -17,6 +17,7 @@ xia2:
 
 refinement:
   ordered_solvent:      False
+  free_flag_mtz:        '/asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/free_cor.mtz'
 
 sql:
   host:                 'cfeld-vm05.desy.de'

@@ -157,7 +157,8 @@ module load phenix/1.13
   --metadata={metadata}_{run:03d} \
   --resolution={resolution}       \
   --refpdb={reference_pdb}        \
-  --mtzin={input_mtz}             
+  --mtzin={input_mtz}             \
+  --freemtz={free_mtz}
 
 """.format(
                     name            = self.name,
@@ -167,6 +168,7 @@ module load phenix/1.13
                     rsrvtn          = self.slurm_config.get('reservation', ''),
                     outdir          = outdir,
                     reference_pdb   = self.reference_pdb,
+                    free_mtz        = self.refinement_config.get('free_flag_mtz', ''),
                     input_mtz       = self.fetch_input_mtz(metadata, run),
                     resolution      = resoln,
                     ordered_solvent = self.refinement_config.get('ordered_solvent', True)

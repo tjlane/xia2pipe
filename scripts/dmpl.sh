@@ -27,6 +27,7 @@ function usage()
     echo "--resolution=<float>"     # resolution
     echo "--refpdb=<path>"          # ref_pdb
     echo "--mtzin=<path>"           # input_mtz
+    echo "--free_mtz=<path>"        # free_mtz
 }
 
 while [ "$1" != "" ]; do
@@ -52,6 +53,9 @@ while [ "$1" != "" ]; do
         --mtzin)
             input_mtz=$VALUE
             ;;
+        --freemtz)
+            free_mtz=$VALUE
+            ;;
         *)
             echo "ERROR: unknown parameter \"$PARAM\""
             usage
@@ -68,6 +72,7 @@ echo "metadata=   ${metadata}"
 echo "resolution= ${resolution}"
 echo "ref_pdb=    ${ref_pdb}"
 echo "input_mtz=  ${input_mtz}"
+echo "free_mtz=   ${free_mtz}"
 
 
 # >> static input (for now)
@@ -82,7 +87,7 @@ echo "chdir: ${outdir}"
 
 # >> uni_free : same origin, reset rfree flags
 uni_free=$SCRIPTS_DIR/uni_free.csh
-csh ${uni_free} ${input_mtz} ${metadata}_rfree.mtz
+csh ${uni_free} ${input_mtz} ${metadata}_rfree.mtz ${free_mtz}
 
 
 # >> cut resolution of MTZ
