@@ -3,7 +3,7 @@
 # April 20, 2020
 
 project:
-  name:                 'DIALS_1p7A_REFv2'
+  name:                 'DMPL_test'
   pipeline:             'dials'
   pipeline_name:        'DIALS_1p7A-dials'
   rawdata_dirs:

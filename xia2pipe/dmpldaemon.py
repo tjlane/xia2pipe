@@ -4,10 +4,11 @@ import re
 import time
 import subprocess
 import argparse
-import xml.etree.ElementTree as ET
 from os.path import join as pjoin
 
 from xia2pipe.projbase import ProjectBase
+
+
 
 
 class DimplingDaemon(ProjectBase):
@@ -128,11 +129,6 @@ class DimplingDaemon(ProjectBase):
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
-        if self.refinement_config.get('rebuild', False):
-            rebuild_str = '--rebuild'
-        else:
-            rebuild_str = ''
-
         if self.refinement_config.get('ordered_solvent', True):
             ordered_sol_str = ''
         else:
@@ -145,7 +141,10 @@ class DimplingDaemon(ProjectBase):
 #SBATCH --partition={partition}
 #SBATCH --reservation={rsrvtn}
 #SBATCH --nodes=1
-#SBATCH --time=4:00:00
+#SBATCH --oversubscribe
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=5
+#SBATCH --time=8:00:00
 #SBATCH --job-name  {name}-dmpl_{metadata}-{run}
 #SBATCH --output    {outdir}/{name}-dmpl_{metadata}-{run}.out
 #SBATCH --error     {outdir}/{name}-dmpl_{metadata}-{run}.err
@@ -154,8 +153,8 @@ export LD_PRELOAD=""
 source /etc/profile.d/modules.sh
 
 module load ccp4/7.0
-module load phenix/1.18
-#source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
+#module load phenix/1.18 # real_space_refine has bug
+source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
 
 /home/tjlane/opt/xia2pipe/scripts/dmpl.sh \
   --dir={outdir}                  \
@@ -164,8 +163,7 @@ module load phenix/1.18
   --refpdb={reference_pdb}        \
   --mtzin={input_mtz}             \
   --freemtz={free_mtz}            \
-  {ordered_solvent}
-  {rebuild}
+  {ordered_solvent}               
 
 """.format(
                     name            = self.name,
@@ -179,7 +177,6 @@ module load phenix/1.18
                     reference_pdb   = self.reference_pdb,
                     free_mtz        = self.refinement_config.get('free_flag_mtz', ''),
                     ordered_solvent = ordered_sol_str,
-                    rebuild         = rebuild_str,
                   )
 
         # create a slurm sub script
@@ -216,11 +213,23 @@ def script():
 
 if __name__ == '__main__':
 
-    metadata  = 'MPro_2764_1'
-    run = 1
+    #metadata  = 'MPro_2764_1'
+    #run = 1
+
+    jobs = [ 
+             ('MPro_4468_0', 1),
+             ('l11p18_14',   1),
+             ('MPro_2750_0', 1),
+             ('MPro_2764_1', 1),
+             ('l11p17_11',   1),
+           ] 
 
     dd = DimplingDaemon.load_config('../configs/tst-d1p7.yaml')
-    dd.submit_run(metadata, run)
-    #dd.submit_unfinished(limit=0)
+
+    #dd.submit_run('l11p17_11',   1)
+
+    for md, run in jobs:
+        print(md, run)
+        dd.submit_run(md, run)
 
 

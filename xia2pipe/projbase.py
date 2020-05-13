@@ -518,20 +518,32 @@ class ProjectBase:
         cid = self.metadata_to_id(metadata, run)
         outdir = self.metadata_to_outdir(metadata, run)
 
+        # try and find the dimple directory... this changed at one point
+        if os.path.exists( pjoin(outdir, 'dimple') ):
+            dmpldir = pjoin(outdir, 'dimple')
+        else:
+            dmpldir = outdir
+
         mtz_name = "{}_{:03d}_postphenix_out.mtz".format(metadata, run)
-        mtz_path = pjoin(outdir, mtz_name)
+        mtz_path = pjoin(dmpldir, mtz_name)
 
         pdb_name = "{}_{:03d}_postphenix_out.pdb".format(metadata, run)
-        pdb_path = pjoin(outdir, pdb_name)
+        pdb_path = pjoin(dmpldir, pdb_name)
 
-        log_path = pjoin(outdir, 'dimple.log')
+        log_path = pjoin(dmpldir, 'dimple.log')
         if not os.path.exists(log_path):
-            raise IOError('{}_:03d{}/dimple.log does not exist'
+            raise IOError('{}_{:03d}/dimple.log does not exist'
                           ''.format(metadata, run))
 
         # it turns out the python config parser handles dimple.log
-        log = configparser.ConfigParser()
-        log.read(log_path)
+        with open(log_path, 'r') as f:
+            txt = f.read()
+            free_g = re.search('free_r: (\d+\.\d+)', txt)
+            work_g = re.search('overall_r: (\d+\.\d+)', txt)
+
+        if not (free_g or work_g):
+            print(free_g, work_g)
+            raise IOError('cannot parse: {}'.format(log_path))
 
         data_dict = {
                      'data_reduction_id':    self.get_reduction_id(cid, run),
@@ -542,11 +554,11 @@ class ProjectBase:
                      'refinement_mtz_path':  mtz_path,
                      'method':               'dmpl',
                      'resolution_cut':       self.get_resolution(metadata, run),
-                     'rfree':                fmt(log['refmac5 restr']['free_r']),
-                     'rwork':                fmt(log['refmac5 restr']['overall_r']),
-                     'rms_bond_length':      fmt(log['refmac5 restr']['rmsbond']),
-                     'rms_bond_angle':       fmt(log['refmac5 restr']['rmsangl']),
-                     'num_blobs':            _count_blobs(log),
+                     'rfree':                float(free_g.groups()[0]),
+                     'rwork':                float(work_g.groups()[0]),
+                     #'rms_bond_length':      fmt(log['refmac5 restr']['rmsbond']),
+                     #'rms_bond_angle':       fmt(log['refmac5 restr']['rmsangl']),
+                     #'num_blobs':            _count_blobs(log),
                      'average_model_b':      _get_average_model_b(pdb_path),
                     }
         

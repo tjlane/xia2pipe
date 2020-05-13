@@ -17,7 +17,6 @@
 
 # >> DEFAULTS
 ordered_solvent=False
-REBUILD=False
 SCRIPTS_DIR="/home/tjlane/opt/xia2pipe/scripts"
 
 
@@ -35,7 +34,6 @@ function usage()
     echo "--mtzin=<path>"           # input_mtz
     echo "--free_mtz=<path>"        # free_mtz
     echo "--no-ordered-sol"         # ordered_solvent
-    echo "--rebuild"                # REBUILD
     echo "--scriptdir=<path>"       # SCRIPTS_DIR"
 }
 
@@ -68,9 +66,6 @@ while [ "$1" != "" ]; do
         --no-ordered-sol)
             ordered_solvent=True
             ;;
-        --rebuild)
-            REBUILD=True
-            ;;
         --scriptdir)
             SCRIPTS_DIR=$VALUE
             ;;
@@ -92,15 +87,12 @@ echo "ref_pdb=    ${ref_pdb}"
 echo "input_mtz=  ${input_mtz}"
 echo "free_mtz=   ${free_mtz}"
 echo "ordersol=   ${ordered_solvent}"
-echo "rebuild=    ${REBUILD}"
 echo "scriptdir=  ${SCRIPTS_DIR}"
-
 
 
 
 # >> go do the data
 cd ${outdir}
-echo " --- DIMPLING --- "
 echo "chdir: ${outdir}"
 
 
@@ -138,27 +130,8 @@ rm ${cut_mtz}
 rm fd-${cut_mtz}
 
 
-# >> rebuild
-if $REBUILD; then
-    phenix.autobuild                            \
-      data=${cutdown_mtz}                     \
-      model=${ref_pdb}                        \
-      nproc=5                                   \
-      n_cycle_rebuild_max=5                     \
-      multiple_models=True                      \
-      multiple_models_number=1                  \
-      include_input_model=True                  \
-      rebuild_in_place=True                     \
-      keep_input_waters=True                    \
-      place_waters=No                           \
-      s_annealing=False
-
-    ln -sf AutoBuild_run_1_/overall_best.pdb pre_refined.pdb
-
-else
-    ln -sf ${ref_pdb} pre_refined.pdb
-
-fi
+# >> id input model
+ln -sf ${ref_pdb} pre_refined.pdb
 
 
 # >> add riding H
@@ -167,41 +140,76 @@ phenix.ready_set pre_refined.pdb
 
 # >> phenix reciprocal-space refinement
 phenix.refine --overwrite                                               \
-  ${cutdown_mtz}                                                    \
-  pre_refined.updated.pdb                                         \
+  ${cutdown_mtz}                                                        \
+  pre_refined.updated.pdb                                               \
   prefix=${metadata}                                                    \
-  serial=2                                                              \
-  strategy=individual_sites+individual_adp+individual_sites_real_space+rigid_body  \
+  serial=1                                                              \
+  strategy=individual_sites+individual_adp+individual_sites_real_space+rigid_body \
   simulated_annealing=True                                              \
   optimize_mask=True                                                    \
   optimize_xyz_weight=True                                              \
   optimize_adp_weight=True                                              \
-  simulated_annealing.mode=second_and_before_last                       \
-  main.number_of_macro_cycles=7                                         \
-  nproc=5                                                               \
-#  tls.find_automatically=True                                           \
+  simulated_annealing.mode=first_half                                   \
+  main.number_of_macro_cycles=6                                         \
+  nproc=4                                                               \
   main.max_number_of_iterations=40                                      \
   adp.set_b_iso=20                                                      \
   ordered_solvent=${ordered_solvent}                                    \
-  simulated_annealing.start_temperature=2500                            \
+  simulated_annealing.start_temperature=5000                            \
+  allow_polymer_cross_special_position=True
 
 # >> real space refinement
 phenix.real_space_refine \
-  ${metadata}_002.pdb    \
-  ${metadata}_002.mtz    \
-  label="2FOFCWT,PH2FOFCWT"
+  ${metadata}_001.pdb    \
+  ${metadata}_001.mtz    \
+  label="2FOFCWT,PH2FOFCWT" \
+  allow_polymer_cross_special_position=True
+
+
+# >> rounds of reciprocal/real refinement
+
+NEXT_INPUT_PDB=${metadata}_001_real_space_refined.pdb
+
+for SERIAL in {2..2}
+do
+    SERIAL_FMT=`printf "%03d" ${SERIAL}`
+
+    phenix.refine --overwrite                                               \
+      ${cutdown_mtz}                                                        \
+      ${NEXT_INPUT_PDB}                                                     \
+      prefix=${metadata}                                                    \
+      serial=$SERIAL                                                        \
+      strategy=individual_sites+individual_adp+individual_sites_real_space  \
+      simulated_annealing=False                                             \
+      optimize_mask=True                                                    \
+      optimize_xyz_weight=True                                              \
+      optimize_adp_weight=True                                              \
+      main.number_of_macro_cycles=5                                         \
+      nproc=4                                                               \
+      main.max_number_of_iterations=40                                      \
+      ordered_solvent=${ordered_solvent}                                    \
+
+    phenix.real_space_refine           \
+      ${metadata}_${SERIAL_FMT}.pdb    \
+      ${metadata}_${SERIAL_FMT}.mtz    \
+      label="2FOFCWT,PH2FOFCWT"
+
+    NEXT_INPUT_PDB=${metadata}_${SERIAL_FMT}_real_space_refined.pdb
+
+done
 
 
 # >> dimple to check for blobs
 dimple                                    \
-  ${metadata}_002_real_space_refined.pdb  \
+  ${metadata}_${SERIAL_FMT}.pdb           \
   ${cutdown_mtz}                          \
+  -M1                                     \
   --free-r-flags ${cutdown_mtz}           \
   -f png                                  \
   --jelly 20                              \
   --restr-cycles 5                        \
   --hklout ${metadata}_postphenix_out.mtz \
   --xyzout ${metadata}_postphenix_out.pdb \
-  {outdir}
+  ./dimple
 
 
