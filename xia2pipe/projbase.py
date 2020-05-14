@@ -370,8 +370,8 @@ class ProjectBase:
 
         if not in_db: # on disk
             successes = self.db.select('metadata, run_id',
-                                       'SARS_COV_2_v2.Diffractions',
-                                       {'diffraction' : 'Success'})
+                                       'SARS_COV_2_v2.Diffractions',)
+                                       #{'diffraction' : 'Success'})
 
             ret = []
             for md in [ (s['metadata'], s['run_id']) for s in successes ]:
@@ -556,8 +556,8 @@ class ProjectBase:
     def fetch_dmpl_successes(self):
 
         successes = self.db.select('metadata, run_id',
-                                   'SARS_COV_2_v2.Diffractions',
-                                   {'diffraction' : 'Success'})
+                                   'SARS_COV_2_v2.Diffractions',)
+                                   #{'diffraction' : 'Success'})
 
         to_run = []
         for md in [ (s['metadata'], s['run_id']) for s in successes ]:

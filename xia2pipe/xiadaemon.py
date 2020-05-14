@@ -81,7 +81,7 @@ class XiaDaemon(ProjectBase):
 
     def fetch_diffraction_successes(self):
         successes = self.db.select(
-            ['metadata', 'run_id'], 'SARS_COV_2_v2.Diffractions', {'diffraction' : 'Success'},
+            ['metadata', 'run_id'], 'SARS_COV_2_v2.Diffractions', #{'diffraction' : 'Success'},
         )
         return [ (s['metadata'], s['run_id']) for s in successes ]
 
