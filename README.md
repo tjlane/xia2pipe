@@ -17,13 +17,7 @@ Consists of 3 main parts:
 
 -------------------------------------------------------------------------------
 
-## To Do : Short-Term
-- config file sanity
-
-## To Do : Long-Term
+## To Do
 - re-structure code so crystal_id is first class, not metadata (!)
-- fix uni_free to make it less brittle
-
-
 
 

@@ -4,12 +4,17 @@
 
 project:
   name:                 'DIALS'
-  pipeline:             'dials'
   rawdata_dirs:         
     - '/asap3/petra3/gpfs/p11/2020/data/11009999/raw'
     - '/asap3/petra3/gpfs/p11/2020/data/11010091/raw'
   results_dir:          '/asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc'
+
+xia2:
+  pipeline:             'dials'
+
+refinement:
   reference_pdb:        '/asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/SARS-COV-mpro_refine_110_edited.pdb'
+  free_flag_mtz:        '/asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/free_cor.mtz'
 
 sql:
   host:                 'cfeld-vm05.desy.de'

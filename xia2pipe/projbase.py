@@ -616,7 +616,7 @@ class ProjectBase:
 
 if __name__ == '__main__':
 
-    pb = ProjectBase.load_config('../configs/tst-d1p7.yaml')
+    pb = ProjectBase.load_config('../configs/test.yaml')
 
     #for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
         #print(pb.metadata_to_id(md, run))

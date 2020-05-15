@@ -235,7 +235,7 @@ if __name__ == '__main__':
              ('l11p17_11',   1),
            ] 
 
-    dd = DimplingDaemon.load_config('../configs/tst-d1p7.yaml')
+    dd = DimplingDaemon.load_config('../configs/test.yaml')
 
     #dd.submit_run('l11p17_11',   1)
 
