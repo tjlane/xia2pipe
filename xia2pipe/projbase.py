@@ -87,25 +87,16 @@ class ProjectBase:
 
     def __init__(self, 
                  name,
-                 pipeline,
                  results_dir,
-                 rawdata_dirs=[], # can use database instead
-                 reference_pdb=None,
-                 pipeline_name=None,
-                 sql_config=None,
+                 rawdata_dirs=[],
+                 sql_config={},
                  slurm_config={},
                  xia2_config={},
                  refinement_config={}):
 
         self.name          = name
-        self.pipeline      = pipeline
         self.results_dir   = results_dir
         self.rawdata_dirs  = rawdata_dirs
-        self.reference_pdb = reference_pdb
-        self.pipeline_name = pipeline_name # for interfacing with pipelines I didn't make...
-
-        if pipeline.lower() not in ['dials', '2d', '3d', '3dii']:
-            raise ValueError('pipeline: {} not valid'.format(pipeline))
 
         # ensure output dir exists
         if not os.path.exists(self.results_dir):
@@ -124,11 +115,33 @@ class ProjectBase:
 
 
     @property
-    def method_name(self):
-        if self.pipeline_name is not None:
-            return self.pipeline_name
+    def reduction_pipeline_name(self):
+
+        if 'reduction_pipeline' in self.refinement_config.keys():
+            if 'pipeline' in self.xia2_config.keys():
+                xia_name = '{}-{}'.format(self.name, self.xia2_config['pipeline'])
+                red_name = self.refinement_config['reduction_pipeline']
+                if xia_name != red_name and not hasattr(self, '_pipeline_warning'):
+                    print('')
+                    print(' !!! WARNING !!!')
+                    print('You have set both')
+                    print('refinement.reduction_pipeline={}'.format(red_name))
+                    print('AND')
+                    print('xia2.pipeline={}'.format(xia_name))
+                    print('refinement results will be based on the former, not the latter')
+                    print('')
+                    self._pipeline_warning = True
+            return self.refinement_config['reduction_pipeline']
+
+        elif 'pipeline' in self.xia2_config.keys():
+            return '{}-{}'.format(self.name, self.xia2_config['pipeline'])
+
         else:
-            return '{}-{}'.format(self.name, self.pipeline)
+            raise ValueError('One of the parameters:\n'
+                             '    xia2.pipeline\n'
+                             '    refinement.reduction_pipeline\n'
+                             'must be set to proceed')
+            return
 
 
     @property
@@ -166,7 +179,7 @@ class ProjectBase:
         qid = self.db.select('data_reduction_id',
                              '{}.Data_Reduction'.format(self._analysis_db),
                              {'crystal_id' : crystal_id, 'run_id' : run,
-                             'method' : self.method_name })
+                             'method' : self.reduction_pipeline_name })
         return get_single(qid, crystal_id, run, 'data_reduction_id') 
 
 
@@ -341,7 +354,7 @@ class ProjectBase:
                     'analysis_time': filetime(mtz_path),
                     'folder_path':   outdir,
                     'mtz_path':      mtz_path,
-                    'method':        self.method_name,
+                    'method':        self.reduction_pipeline_name,
                     'resolution_cc': ss['High resolution limit'][0],
                     'a':             cell[0],
                     'b':             cell[1],
@@ -382,7 +395,7 @@ class ProjectBase:
         else:
             successes = self.db.select('crystal_id, run_id',
                                        '{}.Data_Reduction'.format(self._analysis_db),
-                                       {'method' : self.method_name})
+                                       {'method' : self.reduction_pipeline_name})
 
             ret = []
             for s in successes:
@@ -412,7 +425,7 @@ class ProjectBase:
                               {
                                 'crystal_id': cid,
                                 'run_id': run,
-                                'method': self.method_name,
+                                'method': self.reduction_pipeline_name,
                               },
                             )
 
@@ -588,13 +601,11 @@ class ProjectBase:
 
         try:
             name         = proj_config.pop('name')
-            pipeline     = proj_config.pop('pipeline')
             results_dir  = proj_config.pop('results_dir')
         except KeyError as e:
             raise IOError('Missing required parameter in config.yaml\n', e)
 
         return cls(name,
-                   pipeline,
                    results_dir,
                    sql_config=config.get('sql', {}),
                    slurm_config=config.get('slurm', {}),
@@ -605,7 +616,7 @@ class ProjectBase:
 
 if __name__ == '__main__':
 
-    pb = ProjectBase.load_config('../configs/xds_re.yaml')
+    pb = ProjectBase.load_config('../configs/tst-d1p7.yaml')
 
     #for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
         #print(pb.metadata_to_id(md, run))
@@ -619,8 +630,8 @@ if __name__ == '__main__':
     #    print(pb.xia_data(md, run))
     #    print(pb.dmpl_data(md, run))
 
-    #print(pb.method_name)
-    #print(pb.fetch_reduction_successes())
+    print(pb.reduction_pipeline_name)
+    print(pb.fetch_reduction_successes())
 
     print(pb.get_resolution('MPro_4332_1', 1))
 

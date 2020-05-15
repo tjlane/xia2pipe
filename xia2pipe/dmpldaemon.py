@@ -47,7 +47,7 @@ class DimplingDaemon(ProjectBase):
                               {
                                 'crystal_id': cid, 
                                 'run_id': run, 
-                                'method': self.method_name,
+                                'method': self.reduction_pipeline_name,
                               },
                             )
 
@@ -56,7 +56,7 @@ class DimplingDaemon(ProjectBase):
                 # this should work as a default
                 i_mtz = "./DataFiles/SARSCOV2_{}_free.mtz".format(metadata)
             else:
-                print('using method:', self.method_name)
+                print('using method:', self.reduction_pipeline_name)
                 raise RuntimeError('cannot find `mtz_path` in db for:\n'
                                    '(crystal_id, metadata, run) '
                                    '{}, {}, {}'.format(cid, metadata, run))
@@ -121,13 +121,24 @@ class DimplingDaemon(ProjectBase):
 
     def submit_run(self, metadata, run, debug=False, allow_overwrite=True):
 
-        if not hasattr(self, 'reference_pdb'):
-            raise AttributeError('reference_pdb field not set! This is'
-                                 'almost certainly a bug in the code.')
+        if 'reference_pdb' not in self.refinement_config.keys():
+            raise AttributeError('reference_pdb field not set! please '
+                                 'indicate one or more starting models '
+                                 'by setting refinement.reference_pdb '
+                                 'in your config file')
+
+        # if we have many possible reference PDBs
+        elif type(self.refinement_config['reference_pdb']) is list:
+            ref_pdb = ','.join(self.refinement_config['reference_pdb'])
+
+        else:
+            ref_pdb = self.refinement_config['reference_pdb']
+
 
         outdir = self.metadata_to_outdir(metadata, run)
         if not os.path.exists(outdir):
             os.makedirs(outdir)
+
 
         if self.refinement_config.get('place_waters', True):
             water_str = ''
@@ -174,7 +185,7 @@ source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
                     run             = run,
                     resolution      = self.get_resolution(metadata, run),
                     input_mtz       = self.fetch_input_mtz(metadata, run),
-                    reference_pdb   = self.reference_pdb,
+                    reference_pdb   = ref_pdb,
                     free_mtz        = self.refinement_config.get('free_flag_mtz', ''),
                     water_flag      = water_str,
                   )
