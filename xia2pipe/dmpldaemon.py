@@ -129,10 +129,10 @@ class DimplingDaemon(ProjectBase):
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
-        if self.refinement_config.get('ordered_solvent', True):
-            ordered_sol_str = ''
+        if self.refinement_config.get('place_waters', True):
+            water_str = ''
         else:
-            ordered_sol_str = '--no-ordered-sol'
+            water_str = '--dont-place-waters'
 
 
         # then write and sub the slurm script
@@ -163,7 +163,7 @@ source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
   --refpdb={reference_pdb}        \
   --mtzin={input_mtz}             \
   --freemtz={free_mtz}            \
-  {ordered_solvent}               
+  {water_flag}               
 
 """.format(
                     name            = self.name,
@@ -176,7 +176,7 @@ source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
                     input_mtz       = self.fetch_input_mtz(metadata, run),
                     reference_pdb   = self.reference_pdb,
                     free_mtz        = self.refinement_config.get('free_flag_mtz', ''),
-                    ordered_solvent = ordered_sol_str,
+                    water_flag      = water_str,
                   )
 
         # create a slurm sub script

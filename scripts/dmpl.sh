@@ -16,9 +16,9 @@
 
 
 # >> DEFAULTS
-ordered_solvent=False
+ordered_solvent=True
 SCRIPTS_DIR="/home/tjlane/opt/xia2pipe/scripts"
-
+NPROC=24
 
 # >> parse arguments
 function usage()
@@ -33,7 +33,7 @@ function usage()
     echo "--refpdb=<path>"          # ref_pdb
     echo "--mtzin=<path>"           # input_mtz
     echo "--free_mtz=<path>"        # free_mtz
-    echo "--no-ordered-sol"         # ordered_solvent
+    echo "--dont-place-waters"      # ordered_solvent
     echo "--scriptdir=<path>"       # SCRIPTS_DIR"
 }
 
@@ -63,8 +63,8 @@ while [ "$1" != "" ]; do
         --freemtz)
             free_mtz=$VALUE
             ;;
-        --no-ordered-sol)
-            ordered_solvent=True
+        --dont-place-waters)
+            ordered_solvent=False
             ;;
         --scriptdir)
             SCRIPTS_DIR=$VALUE
@@ -96,7 +96,19 @@ cd ${outdir}
 echo "chdir: ${outdir}"
 
 
-# >> uni_free : same origin, reset rfree flags
+# >> if the mtz is from staraniso, drop SA_flag
+#    http://staraniso.globalphasing.org/test_set_flags_about.html 
+#    if the mtz doesn't have the SA_flag col, this does nothing
+sftools <<eof
+READ ${input_mtz}
+SELECT COL SA_flag NOT absent
+WRITE ${input_mtz}
+Y
+EXIT 
+eof
+
+
+# >> uni_free : same origin, set rfree flags to the common set
 uni_free=$SCRIPTS_DIR/uni_free.csh
 csh ${uni_free} ${input_mtz} ${metadata}_rfree.mtz ${free_mtz}
 
@@ -134,80 +146,91 @@ rm fd-${cut_mtz}
 ln -sf ${ref_pdb} pre_refined.pdb
 
 
-# >> add riding H
-phenix.ready_set pre_refined.pdb
+# >> dimple round 1: MR & light refinement
+# >> dimple to check for blobs
+dimple                                    \
+  pre_refined.pdb                         \
+  ${cutdown_mtz}                          \
+  -M0                                     \
+  --free-r-flags ${cutdown_mtz}           \
+  --jelly 25                              \
+  --restr-cycles 0                        \
+  --hklout ${metadata}_dimple-MR.mtz      \
+  --xyzout ${metadata}_dimple-MR.pdb      \
+  .
 
+
+# >> add riding H
+phenix.ready_set ${metadata}_dimple-MR.pdb
+
+
+# >> real space refinement
+phenix.real_space_refine                      \
+  ${metadata}_dimple-MR.updated.pdb           \
+  ${metadata}_dimple-MR.mtz                   \
+  label="FC,PHIC"                             \
+  nproc=${NPROC}                              \
+  run=minimization_global+rigid_body+morphing \
+  allow_polymer_cross_special_position=True   \
+  macro_cycles=5
+
+#${metadata}_dimple-MR.updated_real_space_refined.pdb
+#phenix.ready_set pre_refined.pdb
 
 # >> phenix reciprocal-space refinement
 phenix.refine --overwrite                                               \
   ${cutdown_mtz}                                                        \
-  pre_refined.updated.pdb                                               \
+  ${metadata}_dimple-MR.updated_real_space_refined.pdb                  \
   prefix=${metadata}                                                    \
   serial=1                                                              \
   strategy=individual_sites+individual_adp+individual_sites_real_space+rigid_body \
   simulated_annealing=True                                              \
+  simulated_annealing_torsion=False                                     \
   optimize_mask=True                                                    \
   optimize_xyz_weight=True                                              \
   optimize_adp_weight=True                                              \
   simulated_annealing.mode=first_half                                   \
   main.number_of_macro_cycles=6                                         \
-  nproc=4                                                               \
+  nproc=${NPROC}                                                        \
   main.max_number_of_iterations=40                                      \
   adp.set_b_iso=20                                                      \
   ordered_solvent=${ordered_solvent}                                    \
   simulated_annealing.start_temperature=5000                            \
   allow_polymer_cross_special_position=True
 
-# >> real space refinement
-phenix.real_space_refine \
-  ${metadata}_001.pdb    \
-  ${metadata}_001.mtz    \
-  label="2FOFCWT,PH2FOFCWT" \
-  allow_polymer_cross_special_position=True
 
+phenix.real_space_refine                        \
+  ${metadata}_001.pdb                           \
+  ${metadata}_001.mtz                           \
+  nproc=${NPROC}                                \
+  label="2FOFCWT,PH2FOFCWT"                     
 
-# >> rounds of reciprocal/real refinement
-
-NEXT_INPUT_PDB=${metadata}_001_real_space_refined.pdb
-
-for SERIAL in {2..2}
-do
-    SERIAL_FMT=`printf "%03d" ${SERIAL}`
-
-    phenix.refine --overwrite                                               \
-      ${cutdown_mtz}                                                        \
-      ${NEXT_INPUT_PDB}                                                     \
-      prefix=${metadata}                                                    \
-      serial=$SERIAL                                                        \
-      strategy=individual_sites+individual_adp+individual_sites_real_space  \
-      simulated_annealing=False                                             \
-      optimize_mask=True                                                    \
-      optimize_xyz_weight=True                                              \
-      optimize_adp_weight=True                                              \
-      main.number_of_macro_cycles=5                                         \
-      nproc=4                                                               \
-      main.max_number_of_iterations=40                                      \
-      ordered_solvent=${ordered_solvent}                                    \
-
-    phenix.real_space_refine           \
-      ${metadata}_${SERIAL_FMT}.pdb    \
-      ${metadata}_${SERIAL_FMT}.mtz    \
-      label="2FOFCWT,PH2FOFCWT"
-
-    NEXT_INPUT_PDB=${metadata}_${SERIAL_FMT}_real_space_refined.pdb
-
-done
+phenix.refine --overwrite                                               \
+  ${cutdown_mtz}                                                        \
+  ${metadata}_001_real_space_refined.pdb                                \
+  prefix=${metadata}                                                    \
+  serial=2                                                              \
+  strategy=individual_sites+individual_adp+individual_sites_real_space  \
+  simulated_annealing=False                                             \
+  optimize_mask=True                                                    \
+  optimize_xyz_weight=True                                              \
+  optimize_adp_weight=True                                              \
+  main.number_of_macro_cycles=5                                         \
+  nproc=${NPROC}                                                        \
+  main.max_number_of_iterations=40                                      \
+  ordered_solvent=${ordered_solvent}                                    \
+  allow_polymer_cross_special_position=False
 
 
 # >> dimple to check for blobs
 dimple                                    \
-  ${metadata}_${SERIAL_FMT}.pdb           \
+  ${metadata}_002.pdb                     \
   ${cutdown_mtz}                          \
   -M1                                     \
   --free-r-flags ${cutdown_mtz}           \
   -f png                                  \
-  --jelly 20                              \
-  --restr-cycles 5                        \
+  --jelly 0                               \
+  --restr-cycles 0                        \
   --hklout ${metadata}_postphenix_out.mtz \
   --xyzout ${metadata}_postphenix_out.pdb \
   ./dimple
