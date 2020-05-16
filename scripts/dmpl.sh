@@ -18,7 +18,7 @@
 # >> DEFAULTS
 ordered_solvent=True
 SCRIPTS_DIR="/home/tjlane/opt/xia2pipe/scripts"
-NPROC=24
+NPROC=1
 
 # >> parse arguments
 function usage()
@@ -35,6 +35,7 @@ function usage()
     echo "--free_mtz=<path>"        # free_mtz
     echo "--dont-place-waters"      # ordered_solvent
     echo "--scriptdir=<path>"       # SCRIPTS_DIR"
+    echo "--nproc=<int>"            # NPROC
 }
 
 while [ "$1" != "" ]; do
@@ -69,6 +70,9 @@ while [ "$1" != "" ]; do
         --scriptdir)
             SCRIPTS_DIR=$VALUE
             ;;
+        --nproc)
+            NPROC=$VALUE
+            ;;
         *)
             echo "ERROR: unknown parameter \"$PARAM\""
             usage
@@ -88,6 +92,7 @@ echo "input_mtz=  ${input_mtz}"
 echo "free_mtz=   ${free_mtz}"
 echo "ordersol=   ${ordered_solvent}"
 echo "scriptdir=  ${SCRIPTS_DIR}"
+echo "nproc=      ${NPROC}"
 
 
 
@@ -143,20 +148,21 @@ rm fd-${cut_mtz}
 
 
 # >> id input model
-ln -sf ${ref_pdb} pre_refined.pdb
+#ln -sf ${ref_pdb} pre_refined.pdb
+ref_pdb_list=`echo ${ref_pdb} | tr ',' ' '`
 
 
 # >> dimple round 1: MR & light refinement
 # >> dimple to check for blobs
 dimple                                    \
-  pre_refined.pdb                         \
-  ${cutdown_mtz}                          \
-  -M0                                     \
+  -M1                                     \
   --free-r-flags ${cutdown_mtz}           \
-  --jelly 25                              \
+  --jelly 20                              \
   --restr-cycles 0                        \
   --hklout ${metadata}_dimple-MR.mtz      \
   --xyzout ${metadata}_dimple-MR.pdb      \
+  ${cutdown_mtz}                          \
+  ${ref_pdb_list}                         \
   .
 
 
@@ -164,68 +170,62 @@ dimple                                    \
 phenix.ready_set ${metadata}_dimple-MR.pdb
 
 
-# >> real space refinement
-phenix.real_space_refine                      \
-  ${metadata}_dimple-MR.updated.pdb           \
-  ${metadata}_dimple-MR.mtz                   \
-  label="FC,PHIC"                             \
-  nproc=${NPROC}                              \
-  run=minimization_global+rigid_body+morphing \
-  allow_polymer_cross_special_position=True   \
-  macro_cycles=5
-
-#${metadata}_dimple-MR.updated_real_space_refined.pdb
-#phenix.ready_set pre_refined.pdb
-
 # >> phenix reciprocal-space refinement
+#    1. rigid body
 phenix.refine --overwrite                                               \
   ${cutdown_mtz}                                                        \
-  ${metadata}_dimple-MR.updated_real_space_refined.pdb                  \
+  ${metadata}_dimple-MR.updated.pdb                                     \
   prefix=${metadata}                                                    \
   serial=1                                                              \
-  strategy=individual_sites+individual_adp+individual_sites_real_space+rigid_body \
+  strategy=rigid_body                                                   \
+  optimize_mask=True                                                    \
+  main.number_of_macro_cycles=5                                         \
+  main.max_number_of_iterations=60                                      \
+  rigid_body.mode=every_macro_cycle
+
+# 2. SA
+phenix.refine --overwrite                                               \
+  ${cutdown_mtz}                                                        \
+  ${metadata}_001.pdb                                                   \
+  prefix=${metadata}                                                    \
+  serial=2                                                              \
+  strategy=individual_sites+individual_adp+individual_sites_real_space  \
+  tls.find_automatically=True                                           \
   simulated_annealing=True                                              \
   simulated_annealing_torsion=False                                     \
   optimize_mask=True                                                    \
   optimize_xyz_weight=True                                              \
   optimize_adp_weight=True                                              \
   simulated_annealing.mode=first_half                                   \
-  main.number_of_macro_cycles=6                                         \
+  main.number_of_macro_cycles=5                                         \
   nproc=${NPROC}                                                        \
-  main.max_number_of_iterations=40                                      \
+  main.max_number_of_iterations=60                                      \
   adp.set_b_iso=20                                                      \
   ordered_solvent=${ordered_solvent}                                    \
   simulated_annealing.start_temperature=5000                            \
   allow_polymer_cross_special_position=True
 
 
-phenix.real_space_refine                        \
-  ${metadata}_001.pdb                           \
-  ${metadata}_001.mtz                           \
-  nproc=${NPROC}                                \
-  label="2FOFCWT,PH2FOFCWT"                     
-
 phenix.refine --overwrite                                               \
   ${cutdown_mtz}                                                        \
-  ${metadata}_001_real_space_refined.pdb                                \
+  ${metadata}_002.pdb                                                   \
   prefix=${metadata}                                                    \
-  serial=2                                                              \
-  strategy=individual_sites+individual_adp+individual_sites_real_space  \
+  serial=3                                                              \
+  strategy=individual_sites+individual_adp+individual_sites_real_space+tls  \
+  tls.find_automatically=True                                           \
   simulated_annealing=False                                             \
   optimize_mask=True                                                    \
   optimize_xyz_weight=True                                              \
   optimize_adp_weight=True                                              \
-  main.number_of_macro_cycles=5                                         \
+  main.number_of_macro_cycles=10                                        \
   nproc=${NPROC}                                                        \
-  main.max_number_of_iterations=40                                      \
+  main.max_number_of_iterations=60                                      \
   ordered_solvent=${ordered_solvent}                                    \
   allow_polymer_cross_special_position=False
 
 
 # >> dimple to check for blobs
 dimple                                    \
-  ${metadata}_002.pdb                     \
-  ${cutdown_mtz}                          \
   -M1                                     \
   --free-r-flags ${cutdown_mtz}           \
   -f png                                  \
@@ -233,6 +233,8 @@ dimple                                    \
   --restr-cycles 0                        \
   --hklout ${metadata}_postphenix_out.mtz \
   --xyzout ${metadata}_postphenix_out.pdb \
+  ${cutdown_mtz}                          \
+  ${metadata}_002.pdb                     \
   ./dimple
 
 

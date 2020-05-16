@@ -119,7 +119,7 @@ class DimplingDaemon(ProjectBase):
         return
 
 
-    def submit_run(self, metadata, run, debug=False, allow_overwrite=True):
+    def submit_run(self, metadata, run, debug=False, nproc=32):
 
         if 'reference_pdb' not in self.refinement_config.keys():
             raise AttributeError('reference_pdb field not set! please '
@@ -174,7 +174,8 @@ source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
   --refpdb={reference_pdb}        \
   --mtzin={input_mtz}             \
   --freemtz={free_mtz}            \
-  {water_flag}               
+  {water_flag}                    \
+  --nproc={nproc}                 
 
 """.format(
                     name            = self.name,
@@ -188,6 +189,7 @@ source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
                     reference_pdb   = ref_pdb,
                     free_mtz        = self.refinement_config.get('free_flag_mtz', ''),
                     water_flag      = water_str,
+                    nproc           = nproc
                   )
 
         # create a slurm sub script
@@ -237,7 +239,7 @@ if __name__ == '__main__':
 
     dd = DimplingDaemon.load_config('../configs/test.yaml')
 
-    #dd.submit_run('l11p17_11',   1)
+    #dd.submit_run('l9p05_02',   1)
 
     for md, run in jobs:
         print(md, run)
