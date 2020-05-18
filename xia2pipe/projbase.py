@@ -409,7 +409,7 @@ class ProjectBase:
         return ret
 
 
-    def get_resolution(self, metadata, run):
+    def get_reduction_res(self, metadata, run):
 
         # this function is here to allow later modification of,
         # for example, the resolution cut between the reduction
@@ -450,6 +450,22 @@ class ProjectBase:
         if res is None:
             print(' ! resolution for {}, {} is `None`'.format(metadata, run))
             res = 'NULL'
+
+        return res
+
+
+    def get_refinement_res(self, metadata, run):
+
+        # set the refinment resolution to be the largest of either the
+        # requested cut OR the resolution at which the data were processed
+
+        red_res = self.get_reduction_res(metadata, run)
+        res_cut = float(self.refinement_config.get('rescut', -1.0))
+
+        res = max(red_res, res_cut)
+        if res < 0.0:
+            raise RuntimeError('resolution < 0.0, red_res/res_cut:',
+                               red_res, res_cut)
 
         return res
 
@@ -511,7 +527,7 @@ class ProjectBase:
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
                      'method':               'dmpl',
-                     'resolution_cut':       self.get_resolution(metadata, run),
+                     'resolution_cut':       self.get_refinement_res(metadata, run),
                      'rfree':                log_results[1],
                      'rwork':                log_results[0],
                      'rms_bond_length':      log_results[2],
@@ -566,7 +582,7 @@ class ProjectBase:
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
                      'method':               'dmpl',
-                     'resolution_cut':       self.get_resolution(metadata, run),
+                     'resolution_cut':       self.get_reduction_res(metadata, run),
                      'rfree':                float(free_g.groups()[0]),
                      'rwork':                float(work_g.groups()[0]),
                      #'rms_bond_length':      fmt(log['refmac5 restr']['rmsbond']),
@@ -633,5 +649,5 @@ if __name__ == '__main__':
     print(pb.reduction_pipeline_name)
     print(pb.fetch_reduction_successes())
 
-    print(pb.get_resolution('MPro_4332_1', 1))
+    print(pb.get_reduction_res('MPro_4332_1', 1))
 

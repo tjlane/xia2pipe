@@ -4,16 +4,7 @@
 # this script is a mess, meant for quick prototyping...
 # sorry ;)
 
-
-# ./dmpl.sh --dir= --metadata= --resolution= --refpdb= --mtzin=
-
-# NOTE: cross referenced from python
-#outdir={outdir}
-#metadata={metadata}_{run:03d}
-#resolution={resolution}
-#ref_pdb={reference_pdb}
-#input_mtz={input_mtz}
-
+# ./dmpl.sh --dir= --metadata= --resolution= --refpdb= --mtzin= ...
 
 # >> DEFAULTS
 ordered_solvent=True
@@ -155,9 +146,9 @@ ref_pdb_list=`echo ${ref_pdb} | tr ',' ' '`
 # >> dimple round 1: MR & light refinement
 # >> dimple to check for blobs
 dimple                                    \
-  -M1                                     \
+  -M0                                     \
   --free-r-flags ${cutdown_mtz}           \
-  --jelly 20                              \
+  --jelly 0                               \
   --restr-cycles 0                        \
   --hklout ${metadata}_dimple-MR.mtz      \
   --xyzout ${metadata}_dimple-MR.pdb      \
@@ -170,58 +161,71 @@ dimple                                    \
 phenix.ready_set ${metadata}_dimple-MR.pdb
 
 
-# >> phenix reciprocal-space refinement
-#    1. rigid body
+# >> rigid body refinement, adp refinement --> get basic location correct
+#    (serial 1: *_001.pdb)
 phenix.refine --overwrite                                               \
   ${cutdown_mtz}                                                        \
   ${metadata}_dimple-MR.updated.pdb                                     \
   prefix=${metadata}                                                    \
   serial=1                                                              \
-  strategy=rigid_body                                                   \
+  strategy=rigid_body+individual_adp                                    \
   optimize_mask=True                                                    \
   main.number_of_macro_cycles=5                                         \
   main.max_number_of_iterations=60                                      \
-  rigid_body.mode=every_macro_cycle
+  rigid_body.mode=every_macro_cycle                                     \
+  adp.set_b_iso=20                                                      \
 
-# 2. SA
+# >> SA --> allow structure to escape local minimum 
+#    (serial 2: *_002.pdb)
 phenix.refine --overwrite                                               \
   ${cutdown_mtz}                                                        \
   ${metadata}_001.pdb                                                   \
   prefix=${metadata}                                                    \
   serial=2                                                              \
   strategy=individual_sites+individual_adp+individual_sites_real_space  \
-  tls.find_automatically=True                                           \
   simulated_annealing=True                                              \
   simulated_annealing_torsion=False                                     \
   optimize_mask=True                                                    \
   optimize_xyz_weight=True                                              \
   optimize_adp_weight=True                                              \
-  simulated_annealing.mode=first_half                                   \
-  main.number_of_macro_cycles=5                                         \
+  simulated_annealing.mode=every_macro_cycle                            \
+  main.number_of_macro_cycles=1                                         \
   nproc=${NPROC}                                                        \
   main.max_number_of_iterations=60                                      \
-  adp.set_b_iso=20                                                      \
   ordered_solvent=${ordered_solvent}                                    \
-  simulated_annealing.start_temperature=5000                            \
+  simulated_annealing.start_temperature=2500                            \
   allow_polymer_cross_special_position=True
 
 
-phenix.refine --overwrite                                               \
-  ${cutdown_mtz}                                                        \
-  ${metadata}_002.pdb                                                   \
-  prefix=${metadata}                                                    \
-  serial=3                                                              \
+# >> real space refine --> get structure into reasonable geometry
+#    (*_002_real_space_refine.pdb)
+phenix.real_space_refine    \
+  ${metadata}_002.pdb       \
+  ${metadata}_002.mtz       \
+  label='2FOFCWT,PH2FOFCWT' \
+  nproc=${NPROC}            \
+  allow_polymer_cross_special_position=True
+
+
+# >> final refinement, fairly standard --> relax into local minimum
+#    (serial 3: *_003.pdb)
+phenix.refine --overwrite                                                   \
+  ${cutdown_mtz}                                                            \
+  ${metadata}_002_real_space_refined.pdb                                    \
+  prefix=${metadata}                                                        \
+  serial=3                                                                  \
   strategy=individual_sites+individual_adp+individual_sites_real_space+tls  \
-  tls.find_automatically=True                                           \
-  simulated_annealing=False                                             \
-  optimize_mask=True                                                    \
-  optimize_xyz_weight=True                                              \
-  optimize_adp_weight=True                                              \
-  main.number_of_macro_cycles=10                                        \
-  nproc=${NPROC}                                                        \
-  main.max_number_of_iterations=60                                      \
-  ordered_solvent=${ordered_solvent}                                    \
-  allow_polymer_cross_special_position=False
+  tls.one_residue_one_group=True                                            \
+  tls.find_automatically=False                                              \
+  simulated_annealing=False                                                 \
+  optimize_mask=True                                                        \
+  optimize_xyz_weight=True                                                  \
+  optimize_adp_weight=True                                                  \
+  main.number_of_macro_cycles=8                                             \
+  nproc=${NPROC}                                                            \
+  main.max_number_of_iterations=60                                          \
+  ordered_solvent=${ordered_solvent}                                        \
+  allow_polymer_cross_special_position=True
 
 
 # >> dimple to check for blobs

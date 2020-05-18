@@ -119,8 +119,16 @@ class DimplingDaemon(ProjectBase):
         return
 
 
-    def submit_run(self, metadata, run, debug=False, nproc=32):
+    def submit_run(self, metadata, run, debug=False, nproc=4):
 
+        # -- figure out some flags
+
+        # >> place for results
+        outdir = self.metadata_to_outdir(metadata, run)
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+
+        # >> reference PDB(s)
         if 'reference_pdb' not in self.refinement_config.keys():
             raise AttributeError('reference_pdb field not set! please '
                                  'indicate one or more starting models '
@@ -134,19 +142,14 @@ class DimplingDaemon(ProjectBase):
         else:
             ref_pdb = self.refinement_config['reference_pdb']
 
-
-        outdir = self.metadata_to_outdir(metadata, run)
-        if not os.path.exists(outdir):
-            os.makedirs(outdir)
-
-
+        # >> water placement
         if self.refinement_config.get('place_waters', True):
             water_str = ''
         else:
             water_str = '--dont-place-waters'
 
 
-        # then write and sub the slurm script
+        # -- then write and sub the slurm script
         batch_script="""#!/bin/bash
 
 #SBATCH --partition={partition}
@@ -154,8 +157,9 @@ class DimplingDaemon(ProjectBase):
 #SBATCH --nodes=1
 #SBATCH --oversubscribe
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=5
-#SBATCH --time=8:00:00
+#SBATCH --cpus-per-task={nproc}
+#SBATCH --mem=4GB
+#SBATCH --time=2:30:00
 #SBATCH --job-name  {name}-dmpl_{metadata}-{run}
 #SBATCH --output    {outdir}/{name}-dmpl_{metadata}-{run}.out
 #SBATCH --error     {outdir}/{name}-dmpl_{metadata}-{run}.err
@@ -184,7 +188,7 @@ source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
                     metadata        = metadata,
                     outdir          = outdir,
                     run             = run,
-                    resolution      = self.get_resolution(metadata, run),
+                    resolution      = self.get_refinement_res(metadata, run),
                     input_mtz       = self.fetch_input_mtz(metadata, run),
                     reference_pdb   = ref_pdb,
                     free_mtz        = self.refinement_config.get('free_flag_mtz', ''),
@@ -205,6 +209,8 @@ source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
                                stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL)
             os.remove(slurm_file)
+        else:
+            print('-->', slurm_file)
 
         return
 
@@ -239,10 +245,8 @@ if __name__ == '__main__':
 
     dd = DimplingDaemon.load_config('../configs/test.yaml')
 
-    #dd.submit_run('l9p05_02',   1)
-
     for md, run in jobs:
         print(md, run)
-        dd.submit_run(md, run)
+        dd.submit_run(md, run, debug=False)
 
 
