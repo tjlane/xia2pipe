@@ -87,25 +87,16 @@ class ProjectBase:
 
     def __init__(self, 
                  name,
-                 pipeline,
                  results_dir,
-                 rawdata_dirs=[], # can use database instead
-                 reference_pdb=None,
-                 pipeline_name=None,
-                 sql_config=None,
+                 rawdata_dirs=[],
+                 sql_config={},
                  slurm_config={},
                  xia2_config={},
                  refinement_config={}):
 
         self.name          = name
-        self.pipeline      = pipeline
         self.results_dir   = results_dir
         self.rawdata_dirs  = rawdata_dirs
-        self.reference_pdb = reference_pdb
-        self.pipeline_name = pipeline_name # for interfacing with pipelines I didn't make...
-
-        if pipeline.lower() not in ['dials', '2d', '3d', '3dii']:
-            raise ValueError('pipeline: {} not valid'.format(pipeline))
 
         # ensure output dir exists
         if not os.path.exists(self.results_dir):
@@ -124,11 +115,33 @@ class ProjectBase:
 
 
     @property
-    def method_name(self):
-        if self.pipeline_name is not None:
-            return self.pipeline_name
+    def reduction_pipeline_name(self):
+
+        if 'reduction_pipeline' in self.refinement_config.keys():
+            if 'pipeline' in self.xia2_config.keys():
+                xia_name = '{}-{}'.format(self.name, self.xia2_config['pipeline'])
+                red_name = self.refinement_config['reduction_pipeline']
+                if xia_name != red_name and not hasattr(self, '_pipeline_warning'):
+                    print('')
+                    print(' !!! WARNING !!!')
+                    print('You have set both')
+                    print('refinement.reduction_pipeline={}'.format(red_name))
+                    print('AND')
+                    print('xia2.pipeline={}'.format(xia_name))
+                    print('refinement results will be based on the former, not the latter')
+                    print('')
+                    self._pipeline_warning = True
+            return self.refinement_config['reduction_pipeline']
+
+        elif 'pipeline' in self.xia2_config.keys():
+            return '{}-{}'.format(self.name, self.xia2_config['pipeline'])
+
         else:
-            return '{}-{}'.format(self.name, self.pipeline)
+            raise ValueError('One of the parameters:\n'
+                             '    xia2.pipeline\n'
+                             '    refinement.reduction_pipeline\n'
+                             'must be set to proceed')
+            return
 
 
     @property
@@ -166,7 +179,7 @@ class ProjectBase:
         qid = self.db.select('data_reduction_id',
                              '{}.Data_Reduction'.format(self._analysis_db),
                              {'crystal_id' : crystal_id, 'run_id' : run,
-                             'method' : self.method_name })
+                             'method' : self.reduction_pipeline_name })
         return get_single(qid, crystal_id, run, 'data_reduction_id') 
 
 
@@ -341,7 +354,7 @@ class ProjectBase:
                     'analysis_time': filetime(mtz_path),
                     'folder_path':   outdir,
                     'mtz_path':      mtz_path,
-                    'method':        self.method_name,
+                    'method':        self.reduction_pipeline_name,
                     'resolution_cc': ss['High resolution limit'][0],
                     'a':             cell[0],
                     'b':             cell[1],
@@ -382,7 +395,7 @@ class ProjectBase:
         else:
             successes = self.db.select('crystal_id, run_id',
                                        '{}.Data_Reduction'.format(self._analysis_db),
-                                       {'method' : self.method_name})
+                                       {'method' : self.reduction_pipeline_name})
 
             ret = []
             for s in successes:
@@ -396,7 +409,7 @@ class ProjectBase:
         return ret
 
 
-    def get_resolution(self, metadata, run):
+    def get_reduction_res(self, metadata, run):
 
         # this function is here to allow later modification of,
         # for example, the resolution cut between the reduction
@@ -412,7 +425,7 @@ class ProjectBase:
                               {
                                 'crystal_id': cid,
                                 'run_id': run,
-                                'method': self.method_name,
+                                'method': self.reduction_pipeline_name,
                               },
                             )
 
@@ -437,6 +450,22 @@ class ProjectBase:
         if res is None:
             print(' ! resolution for {}, {} is `None`'.format(metadata, run))
             res = 'NULL'
+
+        return res
+
+
+    def get_refinement_res(self, metadata, run):
+
+        # set the refinment resolution to be the largest of either the
+        # requested cut OR the resolution at which the data were processed
+
+        red_res = self.get_reduction_res(metadata, run)
+        res_cut = float(self.refinement_config.get('rescut', -1.0))
+
+        res = max(red_res, res_cut)
+        if res < 0.0:
+            raise RuntimeError('resolution < 0.0, red_res/res_cut:',
+                               red_res, res_cut)
 
         return res
 
@@ -498,7 +527,7 @@ class ProjectBase:
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
                      'method':               'dmpl',
-                     'resolution_cut':       self.get_resolution(metadata, run),
+                     'resolution_cut':       self.get_refinement_res(metadata, run),
                      'rfree':                log_results[1],
                      'rwork':                log_results[0],
                      'rms_bond_length':      log_results[2],
@@ -518,20 +547,32 @@ class ProjectBase:
         cid = self.metadata_to_id(metadata, run)
         outdir = self.metadata_to_outdir(metadata, run)
 
+        # try and find the dimple directory... this changed at one point
+        if os.path.exists( pjoin(outdir, 'dimple') ):
+            dmpldir = pjoin(outdir, 'dimple')
+        else:
+            dmpldir = outdir
+
         mtz_name = "{}_{:03d}_postphenix_out.mtz".format(metadata, run)
-        mtz_path = pjoin(outdir, mtz_name)
+        mtz_path = pjoin(dmpldir, mtz_name)
 
         pdb_name = "{}_{:03d}_postphenix_out.pdb".format(metadata, run)
-        pdb_path = pjoin(outdir, pdb_name)
+        pdb_path = pjoin(dmpldir, pdb_name)
 
-        log_path = pjoin(outdir, 'dimple.log')
+        log_path = pjoin(dmpldir, 'dimple.log')
         if not os.path.exists(log_path):
-            raise IOError('{}_:03d{}/dimple.log does not exist'
+            raise IOError('{}_{:03d}/dimple.log does not exist'
                           ''.format(metadata, run))
 
         # it turns out the python config parser handles dimple.log
-        log = configparser.ConfigParser()
-        log.read(log_path)
+        with open(log_path, 'r') as f:
+            txt = f.read()
+            free_g = re.search('free_r: (\d+\.\d+)', txt)
+            work_g = re.search('overall_r: (\d+\.\d+)', txt)
+
+        if not (free_g or work_g):
+            print(free_g, work_g)
+            raise IOError('cannot parse: {}'.format(log_path))
 
         data_dict = {
                      'data_reduction_id':    self.get_reduction_id(cid, run),
@@ -541,12 +582,12 @@ class ProjectBase:
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
                      'method':               'dmpl',
-                     'resolution_cut':       self.get_resolution(metadata, run),
-                     'rfree':                fmt(log['refmac5 restr']['free_r']),
-                     'rwork':                fmt(log['refmac5 restr']['overall_r']),
-                     'rms_bond_length':      fmt(log['refmac5 restr']['rmsbond']),
-                     'rms_bond_angle':       fmt(log['refmac5 restr']['rmsangl']),
-                     'num_blobs':            _count_blobs(log),
+                     'resolution_cut':       self.get_reduction_res(metadata, run),
+                     'rfree':                float(free_g.groups()[0]),
+                     'rwork':                float(work_g.groups()[0]),
+                     #'rms_bond_length':      fmt(log['refmac5 restr']['rmsbond']),
+                     #'rms_bond_angle':       fmt(log['refmac5 restr']['rmsangl']),
+                     #'num_blobs':            _count_blobs(log),
                      'average_model_b':      _get_average_model_b(pdb_path),
                     }
         
@@ -576,13 +617,11 @@ class ProjectBase:
 
         try:
             name         = proj_config.pop('name')
-            pipeline     = proj_config.pop('pipeline')
             results_dir  = proj_config.pop('results_dir')
         except KeyError as e:
             raise IOError('Missing required parameter in config.yaml\n', e)
 
         return cls(name,
-                   pipeline,
                    results_dir,
                    sql_config=config.get('sql', {}),
                    slurm_config=config.get('slurm', {}),
@@ -593,7 +632,7 @@ class ProjectBase:
 
 if __name__ == '__main__':
 
-    pb = ProjectBase.load_config('../configs/xds_re.yaml')
+    pb = ProjectBase.load_config('../configs/test.yaml')
 
     #for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
         #print(pb.metadata_to_id(md, run))
@@ -607,8 +646,8 @@ if __name__ == '__main__':
     #    print(pb.xia_data(md, run))
     #    print(pb.dmpl_data(md, run))
 
-    #print(pb.method_name)
-    #print(pb.fetch_reduction_successes())
+    print(pb.reduction_pipeline_name)
+    print(pb.fetch_reduction_successes())
 
-    print(pb.get_resolution('MPro_4332_1', 1))
+    print(pb.get_reduction_res('MPro_4332_1', 1))
 

@@ -3,13 +3,23 @@
 # April 20, 2020
 
 project:
-  name:                 'DIALS'
-  pipeline:             'dials'
+  name:                 'DMPL_test'
   rawdata_dirs:
     - '/asap3/petra3/gpfs/p11/2020/data/11009999/raw'
     - '/asap3/petra3/gpfs/p11/2020/data/11010091/raw'
   results_dir:          '/asap3/petra3/gpfs/p11/2020/data/11009999/scratch_cc'
-  reference_pdb:        '/asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/SARS-COV-mpro_refine_110_edited.pdb'
+
+xia2:
+  pipeline:             'dials'
+  d_min:                1.7
+
+refinement:
+  reduction_pipeline:   'DIALS_1p7A-dials' # was project.pipeline_name
+  place_waters:         True
+  free_flag_mtz:        '/asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/free_cor.mtz'
+  reference_pdb:        
+    - '/asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/SARS-COV-mpro_refine_110_edited.pdb'
+    - '/asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/l8p22_09_001_002.pdb'
 
 sql:
   host:                 'cfeld-vm05.desy.de'
@@ -21,6 +31,7 @@ sql:
   autocommit:           True
 
 slurm:
-  partition:            'all'
-  reservation:          'covid'
+  partition:            'cfel'
+#  partition:            'all'
+#  reservation:          'covid'
 

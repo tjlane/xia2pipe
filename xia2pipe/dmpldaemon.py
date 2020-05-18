@@ -4,10 +4,11 @@ import re
 import time
 import subprocess
 import argparse
-import xml.etree.ElementTree as ET
 from os.path import join as pjoin
 
 from xia2pipe.projbase import ProjectBase
+
+
 
 
 class DimplingDaemon(ProjectBase):
@@ -46,7 +47,7 @@ class DimplingDaemon(ProjectBase):
                               {
                                 'crystal_id': cid, 
                                 'run_id': run, 
-                                'method': self.method_name,
+                                'method': self.reduction_pipeline_name,
                               },
                             )
 
@@ -55,7 +56,7 @@ class DimplingDaemon(ProjectBase):
                 # this should work as a default
                 i_mtz = "./DataFiles/SARSCOV2_{}_free.mtz".format(metadata)
             else:
-                print('using method:', self.method_name)
+                print('using method:', self.reduction_pipeline_name)
                 raise RuntimeError('cannot find `mtz_path` in db for:\n'
                                    '(crystal_id, metadata, run) '
                                    '{}, {}, {}'.format(cid, metadata, run))
@@ -118,119 +119,81 @@ class DimplingDaemon(ProjectBase):
         return
 
 
-    def submit_run(self, metadata, run, debug=False, allow_overwrite=True):
+    def submit_run(self, metadata, run, debug=False, nproc=4):
 
-        if not hasattr(self, 'reference_pdb'):
-            raise AttributeError('reference_pdb field not set! This is'
-                                 'almost certainly a bug in the code.')
+        # -- figure out some flags
 
+        # >> place for results
         outdir = self.metadata_to_outdir(metadata, run)
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
-        try:
-            resoln = self.get_resolution(metadata, run)
-        except RuntimeError as e:
-            print('cannot get resolution for '
-                  '{}, {} :'.format(metadata, run), e)
-            return
+        # >> reference PDB(s)
+        if 'reference_pdb' not in self.refinement_config.keys():
+            raise AttributeError('reference_pdb field not set! please '
+                                 'indicate one or more starting models '
+                                 'by setting refinement.reference_pdb '
+                                 'in your config file')
 
-        # then write and sub the slurm script
+        # if we have many possible reference PDBs
+        elif type(self.refinement_config['reference_pdb']) is list:
+            ref_pdb = ','.join(self.refinement_config['reference_pdb'])
+
+        else:
+            ref_pdb = self.refinement_config['reference_pdb']
+
+        # >> water placement
+        if self.refinement_config.get('place_waters', True):
+            water_str = ''
+        else:
+            water_str = '--dont-place-waters'
+
+
+        # -- then write and sub the slurm script
         batch_script="""#!/bin/bash
 
 #SBATCH --partition={partition}
 #SBATCH --reservation={rsrvtn}
 #SBATCH --nodes=1
-#SBATCH --chdir     {outdir}
+#SBATCH --oversubscribe
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task={nproc}
+#SBATCH --mem=4GB
+#SBATCH --time=2:30:00
 #SBATCH --job-name  {name}-dmpl_{metadata}-{run}
-#SBATCH --output    {name}-dmpl_{metadata}-{run}.out
-#SBATCH --error     {name}-dmpl_{metadata}-{run}.err
+#SBATCH --output    {outdir}/{name}-dmpl_{metadata}-{run}.out
+#SBATCH --error     {outdir}/{name}-dmpl_{metadata}-{run}.err
 
 export LD_PRELOAD=""
 source /etc/profile.d/modules.sh
 
 module load ccp4/7.0
-module load phenix/1.13
+#module load phenix/1.18 # real_space_refine has bug
+source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
 
+/home/tjlane/opt/xia2pipe/scripts/dmpl.sh \
+  --dir={outdir}                  \
+  --metadata={metadata}_{run:03d} \
+  --resolution={resolution}       \
+  --refpdb={reference_pdb}        \
+  --mtzin={input_mtz}             \
+  --freemtz={free_mtz}            \
+  {water_flag}                    \
+  --nproc={nproc}                 
 
-metadata={metadata}_{run:03d}
-resolution={resolution}
-
-ref_pdb={reference_pdb}
-
-# TODO fix this script...
-uni_free=/home/tjlane/opt/xia2pipe/scripts/uni_free.csh
-
-
-# >> inferred input
-input_mtz={input_mtz}
-
-
-# >> uni_free : same origin, reset rfree flags
-csh ${{uni_free}} ${{input_mtz}} ${{metadata}}_rfree.mtz
-
-
-# >> cut resolution of MTZ
-cut_mtz=${{metadata}}_rfree_rescut.mtz # WORK ON NAME
-mtzutils hklin ${{metadata}}_rfree.mtz \
-hklout ${{cut_mtz}} <<eof
-resolution ${{resolution}}
-eof
-
-
-# >> dimple #1
-dimple ${{ref_pdb}} ${{cut_mtz}}       \
-  --free-r-flags ${{cut_mtz}}          \
-  -f png                               \
-  --jelly 0                            \
-  --restr-cycles 15                    \
-  --hklout ${{metadata}}_dim1_out.mtz  \
-  --xyzout ${{metadata}}_dim1_out.pdb  \
-  {outdir}
-
-# >> add riding H
-phenix.ready_set ${{metadata}}_dim1_out.pdb
-
-
-# >> phenix refinement
-phenix.refine ${{cut_mtz}} ${{metadata}}_dim1_out.updated.pdb           \
-  prefix=${{metadata}}                                                  \
-  serial=2                                                              \
-  strategy=individual_sites+individual_adp+individual_sites_real_space  \
-  simulated_annealing=True                                              \
-  optimize_mask=True                                                    \
-  optimize_xyz_weight=True                                              \
-  optimize_adp_weight=True                                              \
-  simulated_annealing.mode=second_and_before_last                       \
-  main.number_of_macro_cycles=7                                         \
-  nproc=24                                                              \
-  main.max_number_of_iterations=40                                      \
-  adp.set_b_iso=20                                                      \
-  ordered_solvent=True                                                  \
-  simulated_annealing.start_temperature=2500                            \
-  refinement.input.xray_data.r_free_flags.label=FreeR_flag
-
-
-# >> dimple #2
-dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
-  --free-r-flags ${{cut_mtz}}             \
-  -f png                                  \
-  --jelly 0                               \
-  --restr-cycles 15                       \
-  --hklout ${{metadata}}_postphenix_out.mtz \
-  --xyzout ${{metadata}}_postphenix_out.pdb \
-  {outdir}
-
-        """.format(
-                    name          = self.name,
-                    metadata      = metadata,
-                    run           = run,
-                    partition     = self.slurm_config.get('partition', 'all'),
-                    rsrvtn        = self.slurm_config.get('reservation', ''),
-                    outdir        = outdir,
-                    reference_pdb = self.reference_pdb,
-                    input_mtz     = self.fetch_input_mtz(metadata, run),
-                    resolution    = resoln,
+""".format(
+                    name            = self.name,
+                    partition       = self.slurm_config.get('partition', 'all'),
+                    rsrvtn          = self.slurm_config.get('reservation', ''),
+                    metadata        = metadata,
+                    outdir          = outdir,
+                    run             = run,
+                    resolution      = self.get_refinement_res(metadata, run),
+                    input_mtz       = self.fetch_input_mtz(metadata, run),
+                    reference_pdb   = ref_pdb,
+                    free_mtz        = self.refinement_config.get('free_flag_mtz', ''),
+                    water_flag      = water_str,
+                    nproc           = nproc
                   )
 
         # create a slurm sub script
@@ -246,6 +209,8 @@ dimple ${{metadata}}_002.pdb ${{cut_mtz}} \
                                stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL)
             os.remove(slurm_file)
+        else:
+            print('-->', slurm_file)
 
         return
 
@@ -267,11 +232,21 @@ def script():
 
 if __name__ == '__main__':
 
-    metadata  = 'l9p21_04'
-    run = 1
+    #metadata  = 'MPro_2764_1'
+    #run = 1
+
+    jobs = [ 
+             ('MPro_4468_0', 1),
+             ('l11p18_14',   1),
+             ('MPro_2750_0', 1),
+             ('MPro_2764_1', 1),
+             ('l11p17_11',   1),
+           ] 
 
     dd = DimplingDaemon.load_config('../configs/test.yaml')
-    dd.fetch_input_mtz(metadata, run)
-    #dd.submit_unfinished(limit=0)
+
+    for md, run in jobs:
+        print(md, run)
+        dd.submit_run(md, run, debug=False)
 
 

@@ -143,7 +143,7 @@ source /etc/profile.d/modules.sh
 module load ccp4/7.0
 
 imgs={rawdir}
-xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 {x2prms} $imgs
+xia2 project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 {x2prms} $imgs
 
         """.format(
                     name      = self.name,
@@ -151,7 +151,6 @@ xia2 pipeline={pipeline} project=SARSCOV2 crystal={metadata}_{run:03d} nproc=32 
                     run       = run,
                     partition = self.slurm_config.get('partition', 'all'),
                     rsrvtn    = self.slurm_config.get('reservation', ''),
-                    pipeline  = self.pipeline,
                     rawdir    = rawdir,
                     outdir    = outdir,
                     x2prms    = xia2_params,

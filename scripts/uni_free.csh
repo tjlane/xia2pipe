@@ -1,23 +1,15 @@
 #!/bin/csh -f
 
-set mtzin  = $1
-set mtzout = $2
+set mtzin    = $1
+set mtzout   = $2
+set freefile = $3
 
-# you will need realpath for the following
-set self = `realpath $0`
-set baseplace = `dirname $self`
-
-set freefile = /asap3/petra3/gpfs/p11/2020/data/11009999/shared/mpro_references/free_cor.mtz
-set place = $PWD
-
-#echo $place
+echo "$0 $1 $2 $3"
 
 # pointless to place all datasets to common origin
-pointless hklref $freefile hklin ${mtzin} hklout /tmp/$$_0.mtz
+pointless hklref $freefile hklin ${mtzin} hklout ./$$_0.mtz
 
 # uniqueify script
-cp $freefile /tmp
-cd /tmp
 mtzinfo $$_0.mtz > $$.mtzinfo
 set LABELS = `grep LABELS $$.mtzinfo`
 foreach x ( $LABELS )
@@ -45,10 +37,15 @@ LABIN FILE 3 E1 = FreeR_flag
 freerflag HKLIN $$_2.mtz HKLOUT $$_3.mtz <<+
 COMPLETE FREE=FreeR_flag
 +
-mtzutils hklin $$_3.mtz hklout ${place}/${mtzout} <<+
+mtzutils hklin $$_3.mtz hklout ./${mtzout} <<+
 EXCLUDE FUNI SIGFUNI
 SYMM C121
 +
-cd $place
 
 if ( -e XYZOUT ) /bin/rm XYZOUT
+if ( -e $$_0.mtz ) /bin/rm $$_0.mtz
+if ( -e $$_1.mtz ) /bin/rm $$_1.mtz
+if ( -e $$_2.mtz ) /bin/rm $$_2.mtz
+if ( -e $$_3.mtz ) /bin/rm $$_3.mtz
+if ( -e $$.mtzinfo ) /bin/rm $$.mtzinfo
+
