@@ -230,7 +230,7 @@ phenix.refine --overwrite                                                   \
 
 # >> dimple to check for blobs
 dimple                                    \
-  -M1                                     \
+  -M0                                     \
   --free-r-flags ${cutdown_mtz}           \
   -f png                                  \
   --jelly 0                               \
@@ -238,7 +238,7 @@ dimple                                    \
   --hklout ${metadata}_postphenix_out.mtz \
   --xyzout ${metadata}_postphenix_out.pdb \
   ${cutdown_mtz}                          \
-  ${metadata}_002.pdb                     \
+  ${metadata}_003.pdb                     \
   ./dimple
 
 
