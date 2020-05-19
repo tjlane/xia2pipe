@@ -146,7 +146,7 @@ ref_pdb_list=`echo ${ref_pdb} | tr ',' ' '`
 # >> dimple round 1: MR & light refinement
 # >> dimple to check for blobs
 dimple                                    \
-  -M0                                     \
+  -M1                                     \
   --free-r-flags ${cutdown_mtz}           \
   --jelly 0                               \
   --restr-cycles 0                        \
@@ -230,7 +230,7 @@ phenix.refine --overwrite                                                   \
 
 # >> dimple to check for blobs
 dimple                                    \
-  -M0                                     \
+  -M1                                     \
   --free-r-flags ${cutdown_mtz}           \
   -f png                                  \
   --jelly 0                               \
