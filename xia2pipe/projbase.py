@@ -72,6 +72,27 @@ def _phenix_model_b(pdb_path):
     return avg_model_b
 
 
+def _get_pdb_chosen_by_dimple(dimple_log_path):
+
+    pdb_path = None
+
+    with open(dimple_log_path, 'r') as f:
+
+        watching = False
+        for line in f.readlines():
+
+            if line.startswith('# PDBs in order of similarity (using the first one):'):
+                watching = True
+
+            if line.startswith('#') and watching:
+                g = re.search('(\S+\.pdb)', line)
+                if g:
+                    pdb_path = g.groups()[0]
+                    break
+                   
+    return pdb_path
+
+
 def filetime(path):
     tstmp = os.path.getmtime(path)
     return datetime.fromtimestamp(tstmp).strftime('%Y-%m-%d %H:%M:%S')
@@ -497,16 +518,20 @@ class ProjectBase:
         cid = self.metadata_to_id(metadata, run)
         outdir = self.metadata_to_outdir(metadata, run)
 
-        mtz_name = "{}_{:03d}_002.mtz".format(metadata, run)
+        mtz_name = "{}_{:03d}_003.mtz".format(metadata, run)
         mtz_path = pjoin(outdir, mtz_name)
 
-        pdb_name = "{}_{:03d}_002.pdb".format(metadata, run)
+        pdb_name = "{}_{:03d}_003.pdb".format(metadata, run)
         pdb_path = pjoin(outdir, pdb_name)
 
-        log_path = pjoin(outdir, "{}_{:03d}_002.log".format(metadata, run))
-        if not os.path.exists(log_path):
-            raise IOError('{}_:03d{}/dimple.log does not exist'
-                          ''.format(metadata, run))
+        log_path = pjoin(outdir, "{}_{:03d}_003.log".format(metadata, run))
+
+        dimple1_log_path = pjoin(outdir, 'dimple.log')
+
+        for path in [outdir, mtz_path, pdb_path, log_path, dimple1_log_path]:
+            if not os.path.exists(path):
+                raise IOError('{}_:03d{}/{} does not exist!'
+                              ''.format(metadata, run, path))
 
 
         # from log: r-work r-free bonds angles b_min b_max b_ave
@@ -523,10 +548,10 @@ class ProjectBase:
                      'data_reduction_id':    self.get_reduction_id(cid, run),
                      'analysis_time':        filetime(mtz_path),
                      'folder_path':          outdir,
-                     'initial_pdb_path':     self.reference_pdb,
+                     'initial_pdb_path':     _get_pdb_chosen_by_dimple(dimple1_log_path),
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
-                     'method':               'dmpl',
+                     'method':               'dmpl2',
                      'resolution_cut':       self.get_refinement_res(metadata, run),
                      'rfree':                log_results[1],
                      'rwork':                log_results[0],
@@ -578,10 +603,10 @@ class ProjectBase:
                      'data_reduction_id':    self.get_reduction_id(cid, run),
                      'analysis_time':        filetime(mtz_path),
                      'folder_path':          outdir,
-                     'initial_pdb_path':     self.reference_pdb,
+                     #'initial_pdb_path':     self.reference_pdb,
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
-                     'method':               'dmpl',
+                     'method':               'dmpl-dimple',
                      'resolution_cut':       self.get_reduction_res(metadata, run),
                      'rfree':                float(free_g.groups()[0]),
                      'rwork':                float(work_g.groups()[0]),
@@ -632,9 +657,9 @@ class ProjectBase:
 
 if __name__ == '__main__':
 
-    pb = ProjectBase.load_config('../configs/test.yaml')
+    pb = ProjectBase.load_config('../configs/d1p7_v2.yaml')
 
-    #for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
+    for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
         #print(pb.metadata_to_id(md, run))
         #print(pb.raw_data_exists(md, run))
         #print(pb.metadata_to_dataset_path(md, run))
@@ -644,10 +669,10 @@ if __name__ == '__main__':
         #print(pb.get_refinement_id(cid, run))
 
     #    print(pb.xia_data(md, run))
-    #    print(pb.dmpl_data(md, run))
+        print(pb.dmpl_data(md, run))
 
-    print(pb.reduction_pipeline_name)
-    print(pb.fetch_reduction_successes())
+    #print(pb.reduction_pipeline_name)
+    #print(pb.fetch_reduction_successes())
 
-    print(pb.get_reduction_res('MPro_4332_1', 1))
+    #print(pb.get_reduction_res('MPro_4332_1', 1))
 

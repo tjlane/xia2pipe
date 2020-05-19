@@ -114,7 +114,11 @@ class DimplingDaemon(ProjectBase):
             print('Submitting:                      {}'.format(len(to_run)))
 
         for md in list(to_run)[:limit]:
-            self.submit_run(*md)
+            try:
+                self.submit_run(*md)
+            except Exception as e:
+                print(' !!! cannot submit:', md)
+                print(e)
 
         return
 
