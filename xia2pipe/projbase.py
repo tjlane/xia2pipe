@@ -225,7 +225,7 @@ class ProjectBase:
 
         if data_pattern: # is not None, aka database success
             dataset_path = os.path.dirname(data_pattern)
-            ext          = os.path.basename(s).split('.')[-1]
+            ext          = os.path.basename(data_pattern).split('.')[-1]
 
         # >> but if that fails, fall back on searching directories
         else: # data_pattern is None        
@@ -233,7 +233,7 @@ class ProjectBase:
             possible_dirs = []
             for rawdata_dir in self.rawdata_dirs:
                 dataset_path = pjoin(rawdata_dir,
-                                     "{}/{}_{:03d}/".format(metadata, metadata, run))
+                                     "{}/{}_{:03d}".format(metadata, metadata, run))
                 #print('xxx', os.path.exists(dataset_path), dataset_path)
                 if os.path.exists(dataset_path):
                     possible_dirs.append(dataset_path)
@@ -260,7 +260,7 @@ class ProjectBase:
             #print(e)
             return False # for now assume data do not exist
 
-        pth = dataset_path + "*{}".format(ext)
+        pth = dataset_path + "/*{}".format(ext)
         n_files = len(glob(pth))
 
         if n_files > min_files:
@@ -474,10 +474,10 @@ class ProjectBase:
 
         outdir = self.metadata_to_outdir(metadata, run)
 
-        mtzpth = "{}_{:03d}_postphenix_out.mtz".format(metadata, run)
+        mtzpth = "{}_{:03d}_003.mtz".format(metadata, run)
         full_mtz_path = pjoin(outdir, mtzpth)
 
-        errpth = pjoin(outdir, '{}-dmpl_*.err'.format(self.name))
+        errpth = pjoin(outdir, '{}*dmpl*.err'.format(self.name))
 
         if os.path.exists(full_mtz_path):
             result = 'finished'

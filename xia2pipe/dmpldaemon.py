@@ -119,7 +119,7 @@ class DimplingDaemon(ProjectBase):
         return
 
 
-    def submit_run(self, metadata, run, debug=False, nproc=4):
+    def submit_run(self, metadata, run, debug=False, nproc=1):
 
         # -- figure out some flags
 
@@ -158,8 +158,8 @@ class DimplingDaemon(ProjectBase):
 #SBATCH --oversubscribe
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task={nproc}
-#SBATCH --mem=4GB
-#SBATCH --time=2:30:00
+#SBATCH --mem=6GB
+#SBATCH --time=5:00:00
 #SBATCH --job-name  {name}-dmpl_{metadata}-{run}
 #SBATCH --output    {outdir}/{name}-dmpl_{metadata}-{run}.out
 #SBATCH --error     {outdir}/{name}-dmpl_{metadata}-{run}.err
