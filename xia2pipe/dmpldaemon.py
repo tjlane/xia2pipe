@@ -6,9 +6,7 @@ import subprocess
 import argparse
 from os.path import join as pjoin
 
-from xia2pipe.projbase import ProjectBase
-
-
+from xia2pipe.projbase import ProjectBase, ResolutionError
 
 
 class DimplingDaemon(ProjectBase):
@@ -51,8 +49,15 @@ class DimplingDaemon(ProjectBase):
                               },
                             )
 
+        # TODO temporary fix for duplicated XDS
+        if len(qry) == 2:
+            for q in qry:
+                if q['mtz_path'].startswith('/asap3/petra3/gpfs/p11/2020/data/11009999/processed/reindex1_18-22_noice'):
+                    qry.remove(q)
+        # <<< end tmp fix
+
         if len(qry) == 0:
-            if self.pipeline == 'dials':
+            if self.xia2_config.get('pipeline', None) == 'dials':
                 # this should work as a default
                 i_mtz = "./DataFiles/SARSCOV2_{}_free.mtz".format(metadata)
             else:
@@ -114,7 +119,10 @@ class DimplingDaemon(ProjectBase):
             print('Submitting:                      {}'.format(len(to_run)))
 
         for md in list(to_run)[:limit]:
-            self.submit_run(*md)
+            try:
+                self.submit_run(*md)
+            except ResolutionError as e:
+                print(e)
 
         return
 

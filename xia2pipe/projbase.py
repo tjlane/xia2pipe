@@ -14,8 +14,13 @@ from glob import glob
 from datetime import datetime
 from os.path import join as pjoin
 from math import isnan
+from numpy import argmin
 
 from xia2pipe.connector import SQL, get_single
+
+
+class ResolutionError(Exception):
+    pass
 
 
 def _count_blobs(log_handle):
@@ -214,7 +219,7 @@ class ProjectBase:
         qid = self.db.select('refinement_id',
                              '{}.Refinement'.format(self._analysis_db),
                              {'data_reduction_id' : data_reduction_id, 
-                              'method' : 'dmpl'})
+                              'method' : 'dmpl2'})
         return get_single(qid, crystal_id, run, 'refinement_id') 
 
 
@@ -408,24 +413,35 @@ class ProjectBase:
                                        {'diffraction' : 'Success'},)
 
             ret = []
-            for md in [ (s['metadata'], s['run_id']) for s in successes ]:
+            for s in successes:
+                md = (s['metadata'], s['run_id'])
                 if self.xia_result(*md) == 'finished':
                     ret.append(md)
 
-
         else:
-            successes = self.db.select('crystal_id, run_id',
+            successes = self.db.select('crystal_id, run_id, mtz_path',
                                        '{}.Data_Reduction'.format(self._analysis_db),
                                        {'method' : self.reduction_pipeline_name})
 
             ret = []
             for s in successes:
-                ret.append( 
-                            (
-                              self.id_to_metadata(s['crystal_id'], s['run_id']),
-                              s['run_id']
-                            )
-                          )
+
+                ds_qry = self.db.select('diffraction',
+                                        'SARS_COV_2_v2.Diffractions',
+                                        {'crystal_id': s['crystal_id'],
+                                        'run_id':     s['run_id']}
+                                        )
+                diff = get_single(ds_qry, s['crystal_id'], s['run_id'], 'diffraction')
+
+                if diff == 'success' and os.path.exists(s['mtz_path']):
+                    ret.append( 
+                                (
+                                  self.id_to_metadata(s['crystal_id'], s['run_id']),
+                                  s['run_id']
+                                )
+                              )
+                #else:
+                #    print('cannot find reduction mtz or no diffraction:', s, diff)
 
         return ret
 
@@ -458,6 +474,16 @@ class ProjectBase:
                 res = qry[0]['resolution_isigma']
                 
 
+        # TODO temporary fix for duplicated entries in DB
+        elif len(qry) == 2:
+            res = None
+            print(' ! warning: duplicates in db:', qry)
+            print('   attempting to proceed...')
+            if qry[0]['resolution_cc'] == qry[1]['resolution_cc']:
+                if qry[0]['resolution_cc'] is not None:
+                    res = qry[0]['resolution_cc']
+
+
         # (2) if that does not work, try for the xia result on disk
         else:
             try:
@@ -465,12 +491,11 @@ class ProjectBase:
             except OSError as e:
                 print(e)
                 print('SQL query result:', qry)
-                raise RuntimeError('cannot find resolution for {}, {} '
-                                   'in DB or on disk'.format(metadata, run))
+                raise ResolutionError('cannot find resolution for {}, {} '
+                                      'in DB or on disk'.format(metadata, run))
 
         if res is None:
-            print(' ! resolution for {}, {} is `None`'.format(metadata, run))
-            res = 'NULL'
+            raise ResolutionError(' ! resolution for {}, {} is `None`'.format(metadata, run))
 
         return res
 
@@ -485,8 +510,8 @@ class ProjectBase:
 
         res = max(red_res, res_cut)
         if res < 0.0:
-            raise RuntimeError('resolution < 0.0, red_res/res_cut:',
-                               red_res, res_cut)
+            raise ResolutionError('resolution < 0.0, red_res/res_cut:',
+                                  red_res, res_cut)
 
         return res
 
@@ -511,44 +536,64 @@ class ProjectBase:
 
 
     def dmpl_data(self, metadata, run):
-        # a de-formatting function for the dimple log file
-        # -1 here grabs the last round of REFMAC refinement
-        fmt = lambda f : float(f.split(',')[-1].strip(', []'))
 
         cid = self.metadata_to_id(metadata, run)
         outdir = self.metadata_to_outdir(metadata, run)
 
-        mtz_name = "{}_{:03d}_003.mtz".format(metadata, run)
+        # locate the initial pdb
+        dimple1_log_path = pjoin(outdir, 'dimple.log')
+        initial_pdb = _get_pdb_chosen_by_dimple(dimple1_log_path)
+
+        initial_pdb_path = None
+        for path in list(self.refinement_config.get('reference_pdb', [])):
+            if path.endswith(initial_pdb):
+                initial_pdb_path = path
+
+
+        def stats_from_log(log_path):
+            # from log: r-work r-free bonds angles b_min b_max b_ave
+            p = 'end\:' + '\s+(\d+\.\d+)'*7
+            with open(log_path, 'r') as f:
+                g = re.search(p, f.read())
+
+            if g is None:
+                raise IOError('Could not parse: {}'.format(log_path))
+            else:
+                log_results = [ float(e) for e in g.groups() ]
+
+            return log_results
+
+
+        # cycle through the pdbs produced by phenix, choose best r_free
+        r_frees = []
+        for serial in [1,2,3]:
+            log_path = pjoin(outdir, "{}_{:03d}_{:03d}.log".format(metadata, run, serial))
+            _, r_free, _, _, _, _, _ = stats_from_log(log_path)
+            r_frees.append(r_free)
+        best_serial = argmin(r_frees) + 1
+
+        log_path = pjoin(outdir, "{}_{:03d}_{:03d}.log".format(metadata, run, best_serial))
+        log_results = stats_from_log(log_path)
+
+        mtz_name = "{}_{:03d}_{:03d}.mtz".format(metadata, run, best_serial)
         mtz_path = pjoin(outdir, mtz_name)
 
-        pdb_name = "{}_{:03d}_003.pdb".format(metadata, run)
+        pdb_name = "{}_{:03d}_{:03d}.pdb".format(metadata, run, best_serial)
         pdb_path = pjoin(outdir, pdb_name)
 
-        log_path = pjoin(outdir, "{}_{:03d}_003.log".format(metadata, run))
 
-        dimple1_log_path = pjoin(outdir, 'dimple.log')
-
-        for path in [outdir, mtz_path, pdb_path, log_path, dimple1_log_path]:
+        for path in [outdir, initial_pdb_path, mtz_path, pdb_path, 
+                     log_path, dimple1_log_path]:
             if not os.path.exists(path):
-                raise IOError('{}_:03d{}/{} does not exist!'
+                raise IOError('{}_{:03d}/{} does not exist!'
                               ''.format(metadata, run, path))
 
-
-        # from log: r-work r-free bonds angles b_min b_max b_ave
-        p = 'end\:' + '\s+(\d+\.\d+)'*7
-        with open(log_path, 'r') as f:
-            g = re.search(p, f.read())
-
-        if g is None:
-            raise IOError('Could not parse: {}'.format(log_path))
-        else:
-            log_results = [ float(e) for e in g.groups() ]
 
         data_dict = {
                      'data_reduction_id':    self.get_reduction_id(cid, run),
                      'analysis_time':        filetime(mtz_path),
                      'folder_path':          outdir,
-                     'initial_pdb_path':     _get_pdb_chosen_by_dimple(dimple1_log_path),
+                     'initial_pdb_path':     initial_pdb_path,
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
                      'method':               'dmpl2',
