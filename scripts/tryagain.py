@@ -41,7 +41,7 @@ def fetch_to_try_again(config_file):
     return list(to_try_again)
 
 
-def remove_err_files(config_file, list_mds, dryrun=True):
+def remove_err_files(config_file, list_mds, dryrun=False):
 
     dd = DimplingDaemon.load_config(config_file)
 
@@ -53,16 +53,19 @@ def remove_err_files(config_file, list_mds, dryrun=True):
         if len(res) == 1:
             print('{}_{:03d}\t{}'.format(metadata, run, res[0]))
             if not dryrun:
-                os.remove(res)
+                os.remove(res[0])
 
     return
 
 
 if __name__ == '__main__':
 
+    check = input('Are you sure? [y] ')
+    if check != 'y':
+        proint('bye.')
+        sys.exit(0)
+
     config_file = sys.argv[-1]
     todo = fetch_to_try_again(config_file)
-
-    print(len(todo))
-    #remove_err_files(config_file, todo)
+    remove_err_files(config_file, todo)
 
