@@ -3,7 +3,7 @@
 # April 20, 2020
 
 project:
-  name:                 'DMPL_test'
+  name:                 'DMPL_test_final'
   rawdata_dirs:
     - '/asap3/petra3/gpfs/p11/2020/data/11009999/raw'
     - '/asap3/petra3/gpfs/p11/2020/data/11010091/raw'
