@@ -480,7 +480,7 @@ class ProjectBase:
         # set the refinment resolution to be the largest of either the
         # requested cut OR the resolution at which the data were processed
 
-        red_res = self.get_reduction_res(metadata, run)
+        red_res = float(self.get_reduction_res(metadata, run))
         res_cut = float(self.refinement_config.get('rescut', -1.0))
 
         res = max(red_res, res_cut)
