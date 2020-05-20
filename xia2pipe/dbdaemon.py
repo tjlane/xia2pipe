@@ -52,7 +52,12 @@ class DBDaemon(ProjectBase):
 
             if not self.in_db(md, run, table):
 
-                data = data_fetcher(md, run)
+                try:
+                    data = data_fetcher(md, run)
+                except Exception as e:
+                    print('! issue with {} {}'.format(md, run))
+                    print(e)
+                    continue
 
                 if float('nan') in data.values():
                     print('nan in values!', data)

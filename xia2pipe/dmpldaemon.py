@@ -49,13 +49,6 @@ class DimplingDaemon(ProjectBase):
                               },
                             )
 
-        # TODO temporary fix for duplicated XDS
-        if len(qry) == 2:
-            for q in qry:
-                if q['mtz_path'].startswith('/asap3/petra3/gpfs/p11/2020/data/11009999/processed/reindex1_18-22_noice'):
-                    qry.remove(q)
-        # <<< end tmp fix
-
         if len(qry) == 0:
             if self.xia2_config.get('pipeline', None) == 'dials':
                 # this should work as a default

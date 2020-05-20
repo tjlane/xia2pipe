@@ -205,7 +205,7 @@ class ProjectBase:
         qid = self.db.select('data_reduction_id',
                              '{}.Data_Reduction'.format(self._analysis_db),
                              {'crystal_id' : crystal_id, 'run_id' : run,
-                             'method' : self.reduction_pipeline_name })
+                              'method' : self.reduction_pipeline_name })
         return get_single(qid, crystal_id, run, 'data_reduction_id') 
 
 
@@ -474,16 +474,6 @@ class ProjectBase:
                 res = qry[0]['resolution_isigma']
                 
 
-        # TODO temporary fix for duplicated entries in DB
-        elif len(qry) == 2:
-            res = None
-            print(' ! warning: duplicates in db:', qry)
-            print('   attempting to proceed...')
-            if qry[0]['resolution_cc'] == qry[1]['resolution_cc']:
-                if qry[0]['resolution_cc'] is not None:
-                    res = qry[0]['resolution_cc']
-
-
         # (2) if that does not work, try for the xia result on disk
         else:
             try:
@@ -567,10 +557,25 @@ class ProjectBase:
         # cycle through the pdbs produced by phenix, choose best r_free
         r_frees = []
         for serial in [1,2,3]:
+
             log_path = pjoin(outdir, "{}_{:03d}_{:03d}.log".format(metadata, run, serial))
-            _, r_free, _, _, _, _, _ = stats_from_log(log_path)
-            r_frees.append(r_free)
+
+            if os.path.exists(log_path):
+                try:
+                    _, r_free, _, _, _, _, _ = stats_from_log(log_path)
+                    r_frees.append(r_free)
+                except OSError as e:
+                    # this happens rarely when one phenix serial step fails
+                    # but the next one proceeds OK
+                    #print(e)
+                    r_frees.append(1.0)
+            else:
+                r_frees.append(1.0)
+
+        # (remember serial is 1-indexed)
         best_serial = argmin(r_frees) + 1
+        if r_frees[best_serial-1] == None:
+            raise RuntimeError('cannot find valid phenix log for {}_{:03d}'.format(metadata, run))
 
         log_path = pjoin(outdir, "{}_{:03d}_{:03d}.log".format(metadata, run, best_serial))
         log_results = stats_from_log(log_path)
