@@ -149,6 +149,12 @@ class DimplingDaemon(ProjectBase):
         else:
             water_str = '--dont-place-waters'
 
+        # >> water placement
+        if self.refinement_config.get('forcedown', True):
+            forcedown_str = '--forcedown'
+        else:
+            forcedown_str = ''
+
 
         # -- then write and sub the slurm script
         batch_script="""#!/bin/bash
@@ -180,7 +186,8 @@ source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
   --mtzin={input_mtz}             \
   --freemtz={free_mtz}            \
   {water_flag}                    \
-  --nproc={nproc}                 
+  --nproc={nproc}                 \
+  {forcedown_flag}
 
 """.format(
                     name            = self.name,
@@ -194,7 +201,8 @@ source /home/tjlane/opt/phenix/phenix-1.18-3861/phenix_env.sh
                     reference_pdb   = ref_pdb,
                     free_mtz        = self.refinement_config.get('free_flag_mtz', ''),
                     water_flag      = water_str,
-                    nproc           = nproc
+                    nproc           = nproc,
+                    forcedown_flag  = forcedown_str,
                   )
 
         # create a slurm sub script

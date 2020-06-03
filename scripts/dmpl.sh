@@ -6,10 +6,13 @@
 
 # ./dmpl.sh --dir= --metadata= --resolution= --refpdb= --mtzin= ...
 
+
 # >> DEFAULTS
 ordered_solvent=True
 SCRIPTS_DIR="/home/tjlane/opt/xia2pipe/scripts"
 NPROC=1
+forcedown=false
+
 
 # >> parse arguments
 function usage()
@@ -27,6 +30,7 @@ function usage()
     echo "--dont-place-waters"      # ordered_solvent
     echo "--scriptdir=<path>"       # SCRIPTS_DIR"
     echo "--nproc=<int>"            # NPROC
+    echo "--forcedown"              # apply forcedown apodization
 }
 
 while [ "$1" != "" ]; do
@@ -63,6 +67,9 @@ while [ "$1" != "" ]; do
             ;;
         --nproc)
             NPROC=$VALUE
+            ;;
+        --forcedown)
+            forcedown=true
             ;;
         *)
             echo "ERROR: unknown parameter \"$PARAM\""
@@ -110,32 +117,38 @@ csh ${uni_free} ${input_mtz} ${metadata}_rfree.mtz ${free_mtz}
 
 
 # >> cut resolution of MTZ
-cut_mtz=${metadata}_rfree_rescut.mtz
+cut_mtz=${metadata}_cut.mtz
 mtzutils hklin ${metadata}_rfree.mtz \
 hklout ${cut_mtz} <<eof
 resolution ${resolution}
 eof
 
+rm ${metadata}_rfree.mtz
+
 
 # >> forcedown uncut reflections & ensure r-free flags propogate
-fd=${SCRIPTS_DIR}/force_down
-cutdown_mtz=${metadata}_cutdown.mtz
-${fd} ${cut_mtz}
+if ${forcedown}; then
 
+  cutdown_mtz=${metadata}_cutdown.mtz
 
-# >> copy r-free flags to cutdown mtz
-sftools <<eof
+  fd=${SCRIPTS_DIR}/force_down
+  ${fd} ${cut_mtz}
+
+  sftools <<eof
 READ fd-${cut_mtz}
 READ ${cut_mtz} COLUMN FreeR_flag
 WRITE ${cutdown_mtz}
 EXIT
 eof
 
+  rm fd-${cut_mtz}
+  # >> end up with _cutdown.mtz
 
-# >> cleanup
-rm ${metadata}_rfree_rescut.mtz
-rm ${cut_mtz}
-rm fd-${cut_mtz}
+else
+  cutdown_mtz=${cut_mtz}
+  # >> end up with _cut.mtz
+
+fi
 
 
 # >> id input model
