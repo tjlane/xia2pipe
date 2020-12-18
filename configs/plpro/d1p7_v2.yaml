@@ -1,0 +1,33 @@
+
+# TJL
+# April 20, 2020
+
+project:
+  name:                 'DIALS_1p7A'
+  rawdata_dirs:
+    - '/asap3/petra3/gpfs/p11/2020/data/11008472/raw'
+  results_dir:          '/asap3/petra3/gpfs/p11/2020/data/11008472/scratch_cc'
+
+
+refinement:
+  reduction_pipeline:   'DIALS_1p7A-dials'
+  reference_pdb:        
+    - '/asap3/petra3/gpfs/p11/2020/data/11008472/shared/PLpro_references/PLpro_wt_110920_VS.pdb'
+  free_flag_mtz:        '/asap3/petra3/gpfs/p11/2020/data/11009999/shared/PLpro_references'
+  place_waters:         False
+  forcedown:            True
+
+sql:
+  host:                 'cfeld-vm05.desy.de'
+  database:             'SARS_COV_2_Analysis_v2'
+  user:                 'readWriter'
+  password:             'sarsCovRW99!'
+  connection_timeout:   60
+  auth_plugin:          'mysql_native_password'
+  autocommit:           True
+
+slurm:
+  partition:            'cfel'
+#  partition:            'allrsv'
+#  reservation:          'covid'
+
