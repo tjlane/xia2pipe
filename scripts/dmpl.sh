@@ -26,7 +26,7 @@ function usage()
     echo "--resolution=<float>"     # resolution
     echo "--refpdb=<path>"          # ref_pdb
     echo "--mtzin=<path>"           # input_mtz
-    echo "--free_mtz=<path>"        # free_mtz
+    echo "--freemtz=<path>"         # free_mtz
     echo "--dont-place-waters"      # ordered_solvent
     echo "--scriptdir=<path>"       # SCRIPTS_DIR"
     echo "--nproc=<int>"            # NPROC
@@ -156,10 +156,15 @@ fi
 ref_pdb_list=`echo ${ref_pdb} | tr ',' ' '`
 
 
-# >> dimple round 1: MR & light refinement
-# >> dimple to check for blobs
+# >> dimple round 1
+
+# TJL 17DEC2020
+# I re-enabled the default setting for MR as the latest
+# crystals have highly variable unit cells
+#  -M1                                     \
+
+
 dimple                                    \
-  -M1                                     \
   --free-r-flags ${cutdown_mtz}           \
   --jelly 0                               \
   --restr-cycles 0                        \
@@ -187,6 +192,7 @@ phenix.refine --overwrite                                               \
   main.max_number_of_iterations=60                                      \
   rigid_body.mode=every_macro_cycle                                     \
   adp.set_b_iso=20                                                      \
+  refinement.input.symmetry_safety_check=warning
 
 # >> SA --> allow structure to escape local minimum 
 #    (serial 2: *_002.pdb)

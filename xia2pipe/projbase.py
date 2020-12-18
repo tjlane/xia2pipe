@@ -710,7 +710,7 @@ if __name__ == '__main__':
     pb = ProjectBase.load_config('../configs/d1p7_v2.yaml')
 
     for md,run in [('l9p05_06', 1), ('l4p23_05', 1)]:
-        #print(pb.metadata_to_id(md, run))
+        print(pb.metadata_to_outdir(md, run))
         #print(pb.raw_data_exists(md, run))
         #print(pb.metadata_to_dataset_path(md, run))
 

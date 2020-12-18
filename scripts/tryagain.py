@@ -62,7 +62,7 @@ if __name__ == '__main__':
 
     check = input('Are you sure? [y] ')
     if check != 'y':
-        proint('bye.')
+        print('bye.')
         sys.exit(0)
 
     config_file = sys.argv[-1]

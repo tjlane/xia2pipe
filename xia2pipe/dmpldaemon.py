@@ -246,16 +246,16 @@ if __name__ == '__main__':
 
     jobs = [ 
              ('MPro_4468_0', 1),
-             ('l11p18_14',   1),
-             ('MPro_2750_0', 1),
-             ('MPro_2764_1', 1),
-             ('l11p17_11',   1),
+             #('l11p18_14',   1),
+             #('MPro_2750_0', 1),
+             #('MPro_2764_1', 1),
+             #('l11p17_11',   1),
            ] 
 
-    dd = DimplingDaemon.load_config('../configs/test.yaml')
+    dd = DimplingDaemon.load_config('../configs/d1p7_v2.yaml')
 
     for md, run in jobs:
         print(md, run)
-        dd.submit_run(md, run, debug=False)
+        dd.submit_run(md, run, debug=True)
 
 
