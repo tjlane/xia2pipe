@@ -1,5 +1,6 @@
 scripts/runall.sh
 scripts/force_down
+scripts/dmplsmpl*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
