@@ -114,6 +114,7 @@ class ProjectBase:
     def __init__(self, 
                  name,
                  results_dir,
+                 target,
                  rawdata_dirs=[],
                  sql_config={},
                  slurm_config={},
@@ -122,6 +123,7 @@ class ProjectBase:
 
         self.name          = name
         self.results_dir   = results_dir
+        self.target        = target
         self.rawdata_dirs  = rawdata_dirs
 
         # ensure output dir exists
@@ -693,11 +695,13 @@ class ProjectBase:
         try:
             name         = proj_config.pop('name')
             results_dir  = proj_config.pop('results_dir')
+            target       = proj_config.pop('target')
         except KeyError as e:
             raise IOError('Missing required parameter in config.yaml\n', e)
 
         return cls(name,
                    results_dir,
+                   target,
                    sql_config=config.get('sql', {}),
                    slurm_config=config.get('slurm', {}),
                    xia2_config=config.get('xia2', {}),
