@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+"""
+Only dimpling refinement results
+"""
+
 
 import os
 import sys

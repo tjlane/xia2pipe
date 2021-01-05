@@ -27,7 +27,7 @@ unique HKLOUT $$_1.mtz <<+
 CELL $XDATA[2] $XDATA[3] $XDATA[4] $XDATA[5] $XDATA[6] $XDATA[7] SYMMETRY $XDATA[10]
 LABOUT F=FUNI SIGF=SIGFUNI
 RESOLUTION $XDATA[9]
-SYMM C121
+SYMM $XDATA[10]
 +
 cad HKLIN1 $$_0.mtz HKLIN2 $$_1.mtz HKLIN3 $freefile HKLOUT $$_2.mtz <<+
 LABIN FILE 1  ALLIN
@@ -39,7 +39,7 @@ COMPLETE FREE=FreeR_flag
 +
 mtzutils hklin $$_3.mtz hklout ./${mtzout} <<+
 EXCLUDE FUNI SIGFUNI
-SYMM C121
+SYMM $XDATA[10]
 +
 
 if ( -e XYZOUT ) /bin/rm XYZOUT
