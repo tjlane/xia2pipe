@@ -91,6 +91,7 @@ echo "free_mtz=   ${free_mtz}"
 echo "ordersol=   ${ordered_solvent}"
 echo "scriptdir=  ${SCRIPTS_DIR}"
 echo "nproc=      ${NPROC}"
+echo "forcedown=  ${forcedown}"
 
 
 
@@ -123,12 +124,14 @@ hklout ${cut_mtz} <<eof
 resolution ${resolution}
 eof
 
-rm ${metadata}_rfree.mtz
+#rm ${metadata}_rfree.mtz
 
 
 # >> forcedown uncut reflections & ensure r-free flags propogate
 if ${forcedown}; then
 
+  echo ""
+  echo "running forcedown"
   cutdown_mtz=${metadata}_cutdown.mtz
 
   fd=${SCRIPTS_DIR}/force_down
@@ -136,12 +139,24 @@ if ${forcedown}; then
 
   sftools <<eof
 READ fd-${cut_mtz}
+DELETE COLUMN SIGFP
 READ ${cut_mtz} COLUMN FreeR_flag
-WRITE ${cutdown_mtz}
+READ ${cut_mtz} COLUMN SIGF
+SET LABELS COL SIGF
+SIGFP
+WRITE ${cutdown_mtz} COLUMN FreeR_flag FP SIGFP
 EXIT
 eof
 
-  rm fd-${cut_mtz}
+# 9 Jan 2021 : seems like forcedown is not copying over the 
+#              sigmas correctly...
+#READ fd-${cut_mtz}
+#READ ${cut_mtz} COLUMN FreeR_flag
+#WRITE ${cutdown_mtz}
+#EXIT
+#eof
+
+  #rm fd-${cut_mtz}
   # >> end up with _cutdown.mtz
 
 else

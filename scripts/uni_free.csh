@@ -4,9 +4,10 @@ set mtzin    = $1
 set mtzout   = $2
 set freefile = $3
 
-echo "$0 $1 $2 $3"
+echo "UNIFREE $0 $1 $2 $3"
 
 # pointless to place all datasets to common origin
+echo "pointless hklref $freefile hklin ${mtzin} hklout ./$$_0.mtz"
 pointless hklref $freefile hklin ${mtzin} hklout ./$$_0.mtz
 
 # uniqueify script
@@ -16,6 +17,13 @@ foreach x ( $LABELS )
    if ( $x == FreeR_flag ) then
       mtzutils hklin $$_0.mtz hklout $$_01.mtz <<+
          exclude FreeR_flag
++
+   
+      mv $$_01.mtz $$_0.mtz
+      break
+   else if ( $x == FREE ) then
+      mtzutils hklin $$_0.mtz hklout $$_01.mtz <<+
+         exclude FREE
 +
    
       mv $$_01.mtz $$_0.mtz
@@ -42,10 +50,10 @@ EXCLUDE FUNI SIGFUNI
 SYMM $XDATA[10]
 +
 
-if ( -e XYZOUT ) /bin/rm XYZOUT
-if ( -e $$_0.mtz ) /bin/rm $$_0.mtz
-if ( -e $$_1.mtz ) /bin/rm $$_1.mtz
-if ( -e $$_2.mtz ) /bin/rm $$_2.mtz
-if ( -e $$_3.mtz ) /bin/rm $$_3.mtz
-if ( -e $$.mtzinfo ) /bin/rm $$.mtzinfo
+#if ( -e XYZOUT ) /bin/rm XYZOUT
+#if ( -e $$_0.mtz ) /bin/rm $$_0.mtz
+#if ( -e $$_1.mtz ) /bin/rm $$_1.mtz
+#if ( -e $$_2.mtz ) /bin/rm $$_2.mtz
+#if ( -e $$_3.mtz ) /bin/rm $$_3.mtz
+#if ( -e $$.mtzinfo ) /bin/rm $$.mtzinfo
 
