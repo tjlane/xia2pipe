@@ -12,7 +12,7 @@ class DBDaemon(ProjectBase):
 
     def in_db(self, metadata, run, table):
 
-        cid = self.metadata_to_id(metadata, run)
+        cid = self.metadata_to_id(metadata, run) # crystal ID
 
         if table == 'Data_Reduction':
             try:

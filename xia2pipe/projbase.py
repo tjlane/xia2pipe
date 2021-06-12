@@ -78,22 +78,41 @@ def _phenix_model_b(pdb_path):
 
 
 def _get_pdb_chosen_by_dimple(dimple_log_path):
+    """
+    dimple is used to choose the closest matching PDB
 
-    pdb_path = None
+    this function returns just the PDB file name, not a full path
+    """
 
-    with open(dimple_log_path, 'r') as f:
 
-        watching = False
-        for line in f.readlines():
+    # TJL 06 Jan 2021
+    # I think this works and is much better
+    # the old version (commented below) breaks if you have only one PDB input
 
-            if line.startswith('# PDBs in order of similarity (using the first one):'):
-                watching = True
+    config = configparser.ConfigParser()
+    config.read(dimple_log_path)
 
-            if line.startswith('#') and watching:
-                g = re.search('(\S+\.pdb)', line)
-                if g:
-                    pdb_path = g.groups()[0]
-                    break
+    pdbs = ast.literal_eval( config['workflow']['pdb_files'] )
+    pdb_path = pdbs[0] # they are in order
+
+    #pdb_path = None
+    #
+    #with open(dimple_log_path, 'r') as f:
+    #    watching = False
+    #    for line in f.readlines():
+    #
+    #        if line.startswith('# PDBs in order of similarity (using the first one):'):
+    #            watching = True
+    #
+    #        if line.startswith('#') and watching:
+    #            g = re.search('(\S+\.pdb)', line)
+    #            if g:
+    #                pdb_path = g.groups()[0]
+    #                break
+    #
+    #if pdb_path is None:
+    #    raise IOError('could not find dimple-chosen reference PDB'
+    #                  ' in: {}'.format(dimple_log_path))
                    
     return pdb_path
 
@@ -138,6 +157,11 @@ class ProjectBase:
         self.slurm_config      = slurm_config
         self.xia2_config       = xia2_config
         self.refinement_config = refinement_config
+
+        # this is for backward compatability and is not desirable
+        # provides a default method name
+        if 'method_name' not in self.refinement_config.keys():
+            self.refinement_config['method_name'] = 'dmpl2'
 
         return
 
@@ -221,7 +245,7 @@ class ProjectBase:
         qid = self.db.select('refinement_id',
                              '{}.Refinement'.format(self._analysis_db),
                              {'data_reduction_id' : data_reduction_id, 
-                              'method' : 'dmpl2'})
+                              'method' : self.refinement_config['method_name']})
         return get_single(qid, crystal_id, run, 'refinement_id') 
 
 
@@ -603,7 +627,7 @@ class ProjectBase:
                      'initial_pdb_path':     initial_pdb_path,
                      'final_pdb_path':       pdb_path,
                      'refinement_mtz_path':  mtz_path,
-                     'method':               'dmpl2',
+                     'method':               self.refinement_config['method_name'],
                      'resolution_cut':       self.get_refinement_res(metadata, run),
                      'rfree':                log_results[1],
                      'rwork':                log_results[0],

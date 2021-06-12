@@ -166,7 +166,7 @@ class DimplingDaemon(ProjectBase):
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task={nproc}
 #SBATCH --mem=6GB
-#SBATCH --time=5:00:00
+#SBATCH --time=10:00:00
 #SBATCH --job-name  {name}-dmpl_{metadata}-{run}
 #SBATCH --output    {outdir}/{name}-dmpl_{metadata}-{run}.out
 #SBATCH --error     {outdir}/{name}-dmpl_{metadata}-{run}.err
@@ -252,7 +252,7 @@ if __name__ == '__main__':
              #('l11p17_11',   1),
            ] 
 
-    dd = DimplingDaemon.load_config('../configs/d1p7_v2.yaml')
+    dd = DimplingDaemon.load_config('../configs/mpro_v2/DIALS_v2.yaml')
 
     for md, run in jobs:
         print(md, run)
