@@ -1,0 +1,35 @@
+
+
+project:
+  name:                 'AGAL'
+  target:               'aGal'
+  rawdata_dirs:
+    - '/asap3/petra3/gpfs/p11/2021/data/11010936/raw'
+  results_dir:          '/asap3/petra3/gpfs/p11/2021/data/11010936/scratch_cc'
+
+
+xia2:
+  pipeline:             'dials'
+
+refinement:
+  reduction_pipeline:   'DIALS-dials'
+  reference_pdb:        
+    - '/asap3/petra3/gpfs/p11/2021/data/11010936/scratch_cc/ewertwie/aGal_10512_1_refine_12.pdb'
+  free_flag_mtz:        '/asap3/petra3/gpfs/p11/2021/data/11010936/scratch_cc/ewertwie/aGal_10512_1/XDS_ASCII_scaled_19.mtz'
+  place_waters:         True
+  forcedown:            False
+
+sql:
+  host:                 'cfeld-vm05.desy.de'
+  database:             'SARS_COV_2_Analysis_v2'
+  user:                 'readWriter'
+  password:             'sarsCovRW99!'
+  connection_timeout:   60
+  auth_plugin:          'mysql_native_password'
+  autocommit:           True
+
+slurm:
+  partition:            'cfel'
+#  partition:            'allrsv'
+#  reservation:          'covid'
+

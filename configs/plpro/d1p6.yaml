@@ -3,7 +3,7 @@
 # Dec 20, 2020
 
 project:
-  name:                 'plpro_DIALS'
+  name:                 'plpro_DIALS_1p6A'
   target:               'PLpr'
   rawdata_dirs:
     - '/asap3/petra3/gpfs/p11/2020/data/11008472/raw'
@@ -11,15 +11,14 @@ project:
 
 xia2:
   pipeline:             'dials'
-# d_min:                1.7
+  d_min:                1.6
 
 refinement:
-  reduction_pipeline:   'plpro_DIALS-dials'
   reference_pdb:        
     - '/asap3/petra3/gpfs/p11/2020/data/11008472/shared/PLpro_references/PLpro_wt_110920_VS.pdb'
   free_flag_mtz:        '/asap3/petra3/gpfs/p11/2020/data/11008472/shared/PLpro_references/PLPro_wt_110920_VS.mtz'
   place_waters:         False
-  forcedown:            False
+  forcedown:            True
 
 sql:
   host:                 'cfeld-vm05.desy.de'

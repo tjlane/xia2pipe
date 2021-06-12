@@ -3,23 +3,20 @@
 # Dec 20, 2020
 
 project:
-  name:                 'plpro_DIALS'
+  name:                 'plpro_DIALS_1p6A_ref2'
   target:               'PLpr'
   rawdata_dirs:
     - '/asap3/petra3/gpfs/p11/2020/data/11008472/raw'
   results_dir:          '/asap3/petra3/gpfs/p11/2020/data/11008472/scratch_cc'
 
-xia2:
-  pipeline:             'dials'
-# d_min:                1.7
-
 refinement:
-  reduction_pipeline:   'plpro_DIALS-dials'
+  method_name:          'dmpl2-redo'
+  reduction_pipeline:   'plpro_DIALS_1p6A-dials'
   reference_pdb:        
-    - '/asap3/petra3/gpfs/p11/2020/data/11008472/shared/PLpro_references/PLpro_wt_110920_VS.pdb'
-  free_flag_mtz:        '/asap3/petra3/gpfs/p11/2020/data/11008472/shared/PLpro_references/PLPro_wt_110920_VS.mtz'
+    - '/asap3/petra3/gpfs/p11/2020/data/11008472/shared/PLpro_references/7nfv_altconformations_modified.pdb'
+  free_flag_mtz:        '/asap3/petra3/gpfs/p11/2020/data/11008472/shared/PLpro_references/7nfv_rfree.mtz'
   place_waters:         False
-  forcedown:            False
+  forcedown:            True
 
 sql:
   host:                 'cfeld-vm05.desy.de'
@@ -31,8 +28,8 @@ sql:
   autocommit:           True
 
 slurm:
-#  partition:            'allrsv'
-#  reservation:          'covid'
-  partition:            'cfel'
+  partition:            'allrsv'
+  reservation:          'covid'
+#  partition:            'upex'
 
 
